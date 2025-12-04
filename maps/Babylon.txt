@@ -1,0 +1,162 @@
+from itertools import product
+from random import Random
+
+from pyspades.vxl import VXLData
+
+from arenalib.maptools import HSV3fAsRGB3i
+
+name    = 'Babylon'
+version = '1.1a'
+
+height = 10
+scale  = 4
+
+wsize, hsize = 8, 8
+
+x0, y0 = 256 - 31, 256 - 31
+
+xsize, ysize = 2 * wsize * scale, 2 * hsize * scale
+
+def boundary(i, j):
+    Δxmin, Δymin = (2 * i + 0) * scale, (2 * j + 0) * scale
+    Δxmax, Δymax = (2 * i + 1) * scale, (2 * j + 1) * scale
+
+    return x0 + Δxmin, x0 + Δxmax, y0 + Δymin, y0 + Δymax
+
+def center(i, j):
+    xmin, xmax, ymin, ymax = boundary(i, j)
+    return (xmin + xmax) / 2, (ymin + ymax) / 2
+
+def boundaries():
+    for i, j in product(range(wsize), range(hsize)):
+        yield boundary(i, j)
+
+def columns():
+    for xmin, xmax, ymin, ymax in boundaries():
+        yield xmin, ymin
+        yield xmin, ymax - 1
+
+        yield xmax - 1, ymin
+        yield xmax - 1, ymax - 1
+
+def floors():
+    for xmin, xmax, ymin, ymax in boundaries():
+        yield from product(range(xmin, xmax), range(ymin, ymax))
+
+def arena_spawn():
+    for xmin, xmax, ymin, ymax in boundaries():
+        for x, y in product(range(xmin + 1, xmax - 1), range(ymin + 1, ymax - 1)):
+            yield x, y, 64 - height * scale
+
+arena_spawn_list = list(arena_spawn())
+
+extensions = dict(
+    arena              = True,
+    arena_blue_spawns  = arena_spawn_list,
+    arena_green_spawns = arena_spawn_list,
+    water_damage       = 100
+)
+
+def gap(vxl, color, x0, y0, z0):
+    pass
+
+def bridge1(vxl, color, x0, y0, z0):
+    for i, j in product(range(scale), range(1, scale - 1)):
+        vxl.set_point(x0 + j, y0 + i, z0, color)
+
+def stairs1(vxl, color, x0, y0, z0):
+    for i, j in product(range(scale), range(scale)):
+        vxl.set_point(x0 + j, y0 + i,     z0 - i, color)
+        vxl.set_point(x0 + j, y0 + i + 1, z0 - i, color)
+
+def stairsrev1(vxl, color, x0, y0, z0):
+    for i, j in product(range(scale), range(scale)):
+        vxl.set_point(x0 + j, y0 + i,     z0 + (i - (scale - 1)), color)
+        vxl.set_point(x0 + j, y0 + i - 1, z0 + (i - (scale - 1)), color)
+
+def bridge2(vxl, color, x0, y0, z0):
+    for i, j in product(range(scale), range(1, scale - 1)):
+        vxl.set_point(x0 + i, y0 + j, z0, color)
+
+def stairs2(vxl, color, x0, y0, z0):
+    for i, j in product(range(scale), range(scale)):
+        vxl.set_point(x0 + i,     y0 + j, z0 - i, color)
+        vxl.set_point(x0 + i + 1, y0 + j, z0 - i, color)
+
+def stairsrev2(vxl, color, x0, y0, z0):
+    for i, j in product(range(scale), range(scale)):
+        vxl.set_point(x0 + i,     y0 + j, z0 + (i - (scale - 1)), color)
+        vxl.set_point(x0 + i - 1, y0 + j, z0 + (i - (scale - 1)), color)
+
+next1 = {
+    stairs1:    [gap],
+    stairsrev1: [gap],
+    bridge1:    [gap, bridge1, stairs1, stairsrev1],
+    gap:        [gap, bridge1, stairs1, stairsrev1]
+}
+
+next2 = {
+    stairs2:    [gap],
+    stairsrev2: [gap],
+    bridge2:    [gap, bridge2, stairs2, stairsrev2],
+    gap:        [gap, bridge2, stairs2, stairsrev2]
+}
+
+mask = None
+
+def gen_script(basename, seed):
+    global fog
+
+    rgen = Random(seed)
+
+    hue = rgen.uniform(0.0, 1.0)
+
+    water    = HSV3fAsRGB3i(hue, rgen.uniform(0.5, 0.7), 1.0)
+    concrete = HSV3fAsRGB3i(hue, rgen.uniform(0.0, 0.3), 1.0)
+    fog      = HSV3fAsRGB3i(hue, rgen.uniform(0.1, 0.4), 1.0)
+
+    vxl = VXLData()
+
+    for x, y in product(range(512), range(512)):
+        vxl.set_point(x, y, 63, water)
+
+    global mask
+    mask = VXLData()
+
+    for x, y in columns():
+        for Δz in range(height * scale):
+            vxl.set_point(x, y, 62 - Δz, concrete)
+            mask.set_point(x, y, 62 - Δz, (0, 0, 0))
+
+    for x, y in floors():
+        for k in range(height + 1):
+            vxl.set_point(x, y, 62 - k * scale, concrete)
+
+    step = lambda prev, func: {k : rgen.choice(func[v]) for k, v in prev.items()}
+
+    prev1 = {(i, j) : gap for i, j in product(range(wsize - 1), range(hsize))}
+    prev2 = {(i, j) : gap for i, j in product(range(wsize), range(hsize - 1))}
+
+    for k in range(0, height - 1):
+        new1, new2 = step(prev1, next1), step(prev2, next2)
+
+        for (i, j), func in new1.items():
+            x = x0 + 2 * scale * j
+            y = y0 + scale + 2 * scale * i
+            z = 62 - k * scale
+
+            func(vxl, concrete, x, y, z)
+
+        for (i, j), func in new2.items():
+            x = x0 + scale + 2 * scale * j
+            y = y0 + 2 * scale * i
+            z = 62 - k * scale
+
+            func(vxl, concrete, x, y, z)
+
+        prev1, prev2 = new1, new2
+
+    return vxl
+
+def is_indestructable(connection, x, y, z):
+    return bool(mask.get_solid(x, y, z))

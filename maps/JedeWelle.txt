@@ -1,0 +1,110 @@
+from pyspades.vxl import VXLData
+from itertools import product
+from random import Random
+
+from pyspades.common import make_color
+
+from arenalib.maptools import HSV3fAsRGB3i
+
+name    = 'JedeWelle'
+version = '0.1'
+
+extensions = dict(
+    arena               = True,
+    arena_blue_spawn    = (256 - 16, 256, 60),
+    arena_green_spawn   = (256 + 16, 256, 60),
+)
+
+mask = None
+
+def is_indestructable(connection, x, y, z):
+    return mask.get_solid(x, y, z)
+
+center = lambda N: (256 + 8 * N, 256, 60 - abs(N))
+
+w, h = 3, 4
+
+def area(i, j):
+    x1, y1, z1 = center(i)
+    x2, y2, z2 = center(j)
+
+    return dict(
+        arena_blue_spawns  = [(x1, y1, z1)],
+        arena_green_spawns = [(x2, y2, z2)],
+        boundary_blue_team = dict(
+            left   = x1 - w,
+            right  = x1 + w,
+            top    = y1 - h,
+            bottom = y1 + h,
+            damage = 100
+        ),
+        boundary_green_team = dict(
+            left   = x2 - w,
+            right  = x2 + w,
+            top    = y2 - h,
+            bottom = y2 + h,
+            damage = 100
+        )
+    )
+
+blue_area, green_area = -7, 7
+
+extensions.update(area(blue_area, green_area))
+
+def on_flag_capture(connection):
+    global blue_area
+    global green_area
+
+    protocol = connection.protocol
+
+    if connection.team is protocol.blue_team:
+        blue_area = min(blue_area + 1, 0)
+
+    if connection.team is protocol.green_team:
+        green_area = max(green_area - 1, 0)
+
+    extensions.update(area(blue_area, green_area))
+
+    protocol.green_team.arena_spawns = extensions['arena_green_spawns']
+    protocol.blue_team.arena_spawns = extensions['arena_blue_spawns']
+
+def gen_script(basename, seed):
+    global fog
+
+    rgen = Random(seed)
+
+    hue = rgen.uniform(0.0, 1.0)
+
+    water    = HSV3fAsRGB3i(hue, rgen.uniform(0.5, 0.7), 1.0)
+    concrete = HSV3fAsRGB3i(hue, rgen.uniform(0.3, 0.4), 1.0)
+    fog      = HSV3fAsRGB3i(hue, rgen.uniform(0.1, 0.4), 1.0)
+
+    vxl = VXLData()
+
+    for x, y in product(range(512), range(512)):
+        vxl.set_point(x, y, 63, water)
+
+    rgba = make_color(*concrete)
+
+    for N in range(-7, 8):
+        x0, y0, z0 = center(N)
+
+        vxl.set_column_fast(x0 - w + 0, y0 - h + 0, 48, 63, 63, rgba)
+        vxl.set_column_fast(x0 - w + 0, y0 + h - 1, 48, 63, 63, rgba)
+        vxl.set_column_fast(x0 + w - 1, y0 - h + 0, 48, 63, 63, rgba)
+        vxl.set_column_fast(x0 + w - 1, y0 + h - 1, 48, 63, 63, rgba)
+
+    global mask
+    mask = vxl.copy()
+
+    for N in range(-7, 8):
+        x0, y0, z0 = center(N)
+
+        for y in range(y0 - h, y0 + h):
+            vxl.set_point(x0 - w + 0, y, z0 - 2, concrete)
+            vxl.set_point(x0 + w - 1, y, z0 - 2, concrete)
+
+        for x, y, z in product(range(x0 - w, x0 + w), range(y0 - h, y0 + h), [z0, 48]):
+            vxl.set_point(x, y, z, concrete)
+
+    return vxl

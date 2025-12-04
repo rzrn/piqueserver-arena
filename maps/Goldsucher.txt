@@ -1,0 +1,103 @@
+from pyspades.constants import SPADE_TOOL
+from pyspades.vxl import VXLData
+
+from itertools import product
+from random import Random
+
+from arenalib.maptools import HSV3fAsRGB3i
+
+name    = 'Goldsucher'
+version = '1.0'
+
+extensions = dict(
+    arena              = True,
+    arena_blue_spawns  = [(234, 262, 58), (234, 258, 58)],
+    arena_green_spawns = [(278, 262, 58), (278, 262, 58)],
+    boundary_damage    = dict(
+        left   = 256 - 26,
+        right  = 256 + 26,
+        top    = 256 - 26,
+        bottom = 256 + 26,
+        damage = 100
+    )
+)
+
+def on_arena_warning(protocol, seconds):
+    return "In {} seconds DIG GOLD".format(seconds)
+
+gold_location = set()
+
+dirt = (0x67, 0x40, 0x28)
+gold = (0xFF, 0xDF, 0x00)
+
+mask = None
+
+def is_indestructable(connection, x, y, z):
+    return mask.get_solid(x, y, z)
+
+def on_block_removed(player, x, y, z):
+    if (x, y, z) in gold_location:
+        gold_location.remove((x, y, z))
+
+        if player.tool == SPADE_TOOL and player.team is not None:
+            player.protocol.arena_win(player.team)
+
+def gen_script(basename, seed):
+    global fog
+
+    rgen = Random(seed)
+
+    hue = rgen.uniform(0.0, 1.0)
+
+    water     = HSV3fAsRGB3i(hue, rgen.uniform(0.5, 0.7), 1.0)
+    concrete1 = HSV3fAsRGB3i(hue, rgen.uniform(0.0, 0.2), 1.0)
+    concrete2 = HSV3fAsRGB3i(hue, rgen.uniform(0.2, 0.4), 1.0)
+    fog       = HSV3fAsRGB3i(hue, rgen.uniform(0.1, 0.4), 1.0)
+
+    vxl = VXLData()
+
+    for x, y in product(range(512), range(512)):
+        vxl.set_point(x, y, 63, water)
+
+    for Δx, Δy in product(range(-26, 27), range(-26, 27)):
+        if Δx % 4 == 0 or Δy % 4 == 0:
+            if abs(Δx) == 26 or abs(Δy) == 26 or Δx % 4 == Δy % 4:
+                for z in range(52, 64):
+                    vxl.set_point(256 + Δx, 256 + Δy, z, concrete1)
+
+            vxl.set_point(256 + Δx, 256 + Δy, 58, concrete1)
+            vxl.set_point(256 + Δx, 256 + Δy, 56, concrete1)
+            vxl.set_point(256 + Δx, 256 + Δy, 52, concrete1)
+
+    global mask
+    mask = vxl.copy()
+
+    for Δx, Δy in product(range(-24, 25), range(-24, 25)):
+        if (Δx + Δy) % 2 == 0 or abs(Δx) == 24 or abs(Δy) == 24:
+            vxl.set_point(256 + Δx, 256 + Δy, 62, concrete1)
+
+        if -24 < Δx < 24 and -24 < Δy < 24:
+            x, y = 256 + Δx, 256 + Δy
+
+            vxl.set_point(x, y, 61, dirt)
+            vxl.set_point(x, y, 60, dirt)
+            vxl.set_point(x, y, 59, dirt)
+
+            if vxl.get_solid(x, y, 58) is False:
+                vxl.set_point(x, y, 58, concrete2)
+
+    gold_spawn_locations = [
+        (256 + Δx, 256 + Δy, 61)
+        for Δx, Δy in product(range(-22, 23), range(-22, 23))
+        if (Δx + Δy) % 2 != 0 and abs(Δx) != 24 and abs(Δy) != 24
+        and mask.get_solid(256 + Δx, 256 + Δy, 61) is False
+    ]
+
+    for k in range(64):
+        loc = x, y, z = rgen.choice(gold_spawn_locations)
+        gold_spawn_locations.remove(loc)
+
+        gold_location.add(loc)
+        vxl.set_point(x, y, z, gold)
+
+    return vxl

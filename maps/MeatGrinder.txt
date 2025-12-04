@@ -1,0 +1,71 @@
+from itertools import product
+from random import Random
+
+from pyspades.common import make_color
+from pyspades.vxl import VXLData
+
+from arenalib.maptools import HSV3fAsRGB3i
+
+name    = 'MeatGrinder'
+version = '1.0'
+
+x0, y0 = 256, 256
+
+extensions = dict(
+    arena             = True,
+    arena_blue_spawn  = (x0 - 31, y0 - 31, 0),
+    arena_green_spawn = (x0 + 31, y0 + 31, 0),
+    water_damage      = 100
+)
+
+def gen_script(basename, seed):
+    global fog
+
+    rgen = Random(seed)
+
+    hue = rgen.uniform(0.0, 1.0)
+
+    water    = HSV3fAsRGB3i(hue, rgen.uniform(0.5, 0.7), 1.0)
+    concrete = HSV3fAsRGB3i(hue, rgen.uniform(0.0, 0.3), 1.0)
+    fog      = HSV3fAsRGB3i(hue, rgen.uniform(0.1, 0.4), 1.0)
+
+    vxl = VXLData()
+
+    for x, y in product(range(512), range(512)):
+        vxl.set_point(x, y, 63, water)
+
+    for z in range(0, 62, 4):
+        for i, j in product(range(32), range(32)):
+            if z % 8 == 0 and i % 2 == 0:
+                continue
+
+            if z % 8 == 4 and j % 2 == 0:
+                continue
+
+            vxl.set_point(x0 + i, y0 + j, z, concrete)
+            vxl.set_point(x0 - i, y0 + j, z, concrete)
+            vxl.set_point(x0 + i, y0 - j, z, concrete)
+            vxl.set_point(x0 - i, y0 - j, z, concrete)
+
+    rgba = make_color(*concrete)
+
+    for i in range(1, 32, 2):
+        vxl.set_column_fast(x0 + i, y0 + 31, 0, 62, 62, rgba)
+        vxl.set_column_fast(x0 - i, y0 + 31, 0, 62, 62, rgba)
+
+        vxl.set_column_fast(x0 + i, y0 - 31, 0, 62, 62, rgba)
+        vxl.set_column_fast(x0 - i, y0 - 31, 0, 62, 62, rgba)
+
+        vxl.set_column_fast(x0 + 31, y0 + i, 0, 62, 62, rgba)
+        vxl.set_column_fast(x0 + 31, y0 - i, 0, 62, 62, rgba)
+
+        vxl.set_column_fast(x0 - 31, y0 + i, 0, 62, 62, rgba)
+        vxl.set_column_fast(x0 - 31, y0 - i, 0, 62, 62, rgba)
+
+    return vxl
+
+def is_indestructable(connection, x, y, z):
+    i, j = abs(x - x0), abs(y - y0)
+
+    return (1 <= i < 32 and i % 2 == 1 and j == 31) or \
+           (1 <= j < 32 and j % 2 == 1 and i == 31)

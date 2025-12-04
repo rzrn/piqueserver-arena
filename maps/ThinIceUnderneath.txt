@@ -1,0 +1,110 @@
+from pyspades.vxl import VXLData
+from itertools import product
+from random import Random
+
+from pyspades.common import make_color
+
+from arenalib.maptools import (
+    doBlockLinePacket, doBlockBuildPacket,
+    doBlockRemovePacket, doGrenadePacket,
+    HSV3fAsRGB3i
+)
+
+name    = 'ThinIceUnderneath'
+version = '0.1'
+
+z1, z2 = 57, 48
+
+extensions = dict(
+    arena               = True,
+    arena_blue_spawn    = (256 - 2, 256, z1),
+    arena_green_spawn   = (256 + 2, 256, z1),
+    water_damage        = 100,
+    boundary_blue_team  = dict(
+        near   = z2,
+        left   = 0,
+        right  = 256,
+        damage = 100
+    ),
+    boundary_green_team = dict(
+        near   = z2,
+        left   = 257,
+        right  = 512,
+        damage = 100
+    )
+)
+
+mask = None
+
+def is_indestructable(connection, x, y, z):
+    return mask.get_solid(x, y, z)
+
+def on_line_build(player, points):
+    x1, y1, z1 = points[0]
+    x2, y2, z2 = points[-1]
+
+    doBlockLinePacket(player, 512 - x1, y1, z1, 512 - x2, y2, z2)
+
+def on_block_build(player, x, y, z):
+    doBlockBuildPacket(player, 512 - x, y, z)
+
+def on_block_removed(player, x, y, z):
+    doBlockRemovePacket(player, 512 - x, y, z)
+
+def on_grenade_thrown(player, go):
+    x,  y,  z  = go.position.get()
+    vx, vy, vz = go.velocity.get()
+
+    doGrenadePacket(player, go.fuse, 513 - x, y, z, -vx, vy, vz)
+
+def gen_script(basename, seed):
+    global fog
+
+    rgen = Random(seed)
+
+    hue = rgen.uniform(0.0, 1.0)
+
+    water    = HSV3fAsRGB3i(hue, rgen.uniform(0.5, 0.7), 1.0)
+    concrete = HSV3fAsRGB3i(hue, rgen.uniform(0.3, 0.4), 1.0)
+    steel    = HSV3fAsRGB3i(hue, rgen.uniform(0.1, 0.2), 1.0)
+    fog      = HSV3fAsRGB3i(hue, rgen.uniform(0.1, 0.4), 1.0)
+
+    vxl = VXLData()
+
+    for x, y in product(range(512), range(512)):
+        vxl.set_point(x, y, 63, water)
+
+    for x in range(256 - 3, 256 + 4):
+        vxl.set_point(x, 256, z1, concrete)
+
+    for y, z in product(range(256 - 32, 256 + 33), range(z2, 63)):
+        if z % 3 == (z1 - 3) % 3 and y % 2 == 1:
+            continue
+
+        vxl.set_point(256, y, z, steel)
+
+    rgba = make_color(*concrete)
+
+    for Δ1, Δ2 in product(range(-31, 32), range(-31, 32)):
+        if Δ1 % 6 == 3 and Δ2 % 6 == 0:
+            vxl.set_column_fast(256 + Δ1, 256 + Δ2, z2, 62, 62, rgba)
+
+    for Δx, y, z in product(range(1, 33), range(256 - 32, 256 + 33), [z1, z2]):
+        if Δx == 32 or y == 256 - 32 or y == 256 + 32:
+            vxl.set_point(256 - Δx, y, z, steel)
+            vxl.set_point(256 + Δx, y, z, steel)
+
+    for Δx, y in product(range(0, 33), range(256 - 32, 256 + 33)):
+        if Δx != 32 and y != 256 - 32 and y != 256 + 32:
+            vxl.set_point(256 - Δx, y, z2, concrete)
+            vxl.set_point(256 + Δx, y, z2, concrete)
+
+    global mask
+    mask = vxl.copy()
+
+    for Δx, y in product(range(1, 33), range(256 - 32, 256 + 33)):
+        if Δx != 32 and y != 256 - 32 and y != 256 + 32:
+            vxl.set_point(256 - Δx, y, z1, concrete)
+            vxl.set_point(256 + Δx, y, z1, concrete)
+
+    return vxl

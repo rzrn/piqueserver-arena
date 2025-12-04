@@ -1,0 +1,51 @@
+from itertools import product
+from random import Random
+from math import floor
+
+from pyspades.common import make_color
+from pyspades.vxl import VXLData
+
+name    = 'CoalRobbery'
+version = '1.0'
+
+size, x0, y0 = 8, 256, 256
+
+def arena_spawn():
+    for Δx, Δy in product(range(-size, size + 1), range(-size, size + 1)):
+        if Δx % 2 == 1 and Δy % 2 == 1:
+            yield x0 + Δx, y0 + Δy, 59
+
+arena_spawn_list = list(arena_spawn())
+
+extensions = dict(
+    arena              = True,
+    arena_blue_spawns  = arena_spawn_list,
+    arena_green_spawns = arena_spawn_list,
+    water_damage       = 100
+)
+
+def gen_script(basename, seed):
+    global fog
+
+    rgen = Random(seed)
+
+    water = fog = concrete = (0, 0, 0)
+
+    vxl = VXLData()
+
+    for x, y in product(range(512), range(512)):
+        vxl.set_point(x, y, 63, water)
+
+    rgba = make_color(*concrete)
+
+    for Δx, Δy in product(range(-size, size + 1), range(-size, size + 1)):
+        if rgen.uniform(0, 1) < 0.9:
+            vxl.set_point(x0 + Δx, y0 + Δy, 62, concrete)
+
+        if Δx % 2 == 0 and Δy % 2 == 0:
+            vxl.set_column_fast(x0 + Δx, y0 + Δy, 61 - 7, 62, 62, rgba)
+
+        if Δx % 2 == 0:
+            vxl.set_point(x0 + Δx, y0 + Δy, 61 - 8, concrete)
+
+    return vxl

@@ -1,0 +1,116 @@
+from itertools import product
+from random import Random
+
+from pyspades.vxl import VXLData
+
+from arenalib.maptools import HSV3fAsRGB3i
+
+name    = 'Tower'
+version = '2.0'
+
+arena_blue_spawns  = list((256 - 34 - i * 4, 256 - 34 - j * 4, 10) for i, j in product(range(5), range(5)))
+arena_green_spawns = list((256 + 34 + i * 4, 256 + 34 + j * 4, 10) for i, j in product(range(5), range(5)))
+
+extensions = dict(
+    water_damage       = 100,
+    arena_blue_spawns  = arena_blue_spawns,
+    arena_green_spawns = arena_green_spawns,
+    boundary_damage    = dict(
+        left   = 256 - 64,
+        right  = 256 + 64,
+        top    = 256 - 64,
+        bottom = 256 + 64,
+        far    = 11,
+        damage = 100
+    )
+)
+
+offset = 60
+
+def on_flag_capture(connection):
+    team = connection.team
+
+    total = team.score + team.other.score
+
+    nfloor = total // 2
+    zmin = offset - 8 * (6 - nfloor)
+
+    extensions['boundary_damage']['far'] = min(zmin, 64)
+
+def square(vxl, X, Y, Z, size, color):
+    for i in range(-size, size + 1):
+        vxl.set_point(X + i, Y - size, Z, color)
+        vxl.set_point(X + i, Y + size, Z, color)
+        vxl.set_point(X - size, Y + i, Z, color)
+        vxl.set_point(X + size, Y + i, Z, color)
+
+def dotted_square(vxl, X, Y, Z, size, color):
+    for i in range(-size, size + 1):
+        if i % 2 == 0:
+            vxl.set_point(X + i, Y - size, Z, color)
+            vxl.set_point(X + i, Y + size, Z, color)
+            vxl.set_point(X - size, Y + i, Z, color)
+            vxl.set_point(X + size, Y + i, Z, color)
+
+def stairs(color, vxl, X, Y, offset, size):
+    height = 2 * size + 1
+
+    for i in range(-size, size + 1):
+        # stairs
+        for j in range(-size + 1, size):
+            vxl.set_point(X + i, Y + j, offset - (i + size), color)
+
+        # wall
+        for k in range(0, height + 1):
+            vxl.set_point(X + i, Y - size, offset - k, color)
+            vxl.set_point(X + i, Y + size, offset - k, color)
+
+    # platform
+    square(vxl, X, Y, offset - height, size + 1, color)
+    square(vxl, X, Y, offset - height, size + 2, color)
+    square(vxl, X, Y, offset - height, size + 3, color)
+
+    # columns around the stairs
+    for k in range(0, height): dotted_square(vxl, X, Y, offset - k, size + 3, color)
+
+# first floor & columns under the building
+def basement(color, vxl, offset):
+    for x, y in product(range(-64, 65), range(-64, 65)):
+        if max(abs(x), abs(y)) >= 32:
+            vxl.set_point(256 + x, 256 + y, offset, color)
+
+            if x % 4 == 0 and y % 4 == 0:
+                for z in range(offset + 1, 63):
+                    vxl.set_point(256 + x, 256 + y, z, color)
+
+def floor(color, vxl, offset, k):
+    for x, y in product(range(-64, 65), range(-64, 65)):
+        if max(abs(x), abs(y)) >= 32:
+            vxl.set_point(256 + x, 256 + y, offset - 8 * k, color)
+
+            if x % 4 == 0 and y % 4 == 0:
+                for z in range(offset - 8 * k + 1, offset - 8 * (k - 1)):
+                    vxl.set_point(256 + x, 256 + y, z, color)
+
+def gen_script(basename, seed):
+    global fog
+
+    rgen = Random(seed)
+
+    hue = rgen.uniform(0.0, 1.0)
+
+    water    = HSV3fAsRGB3i(hue, rgen.uniform(0.3, 0.4), 1.0)
+    fog      = HSV3fAsRGB3i(hue, rgen.uniform(0.2, 0.3), 1.0)
+    color1   = HSV3fAsRGB3i(hue, rgen.uniform(0.2, 0.3), 1.0)
+    color2   = HSV3fAsRGB3i(hue, rgen.uniform(0.2, 0.3), 1.0)
+
+    vxl = VXLData()
+
+    for x, y in product(range(512), range(512)):
+        vxl.set_point(x, y, 63, water)
+
+    basement(color1, vxl, offset)
+    for k in range(1, 8): floor(color1, vxl, offset, k)
+    for k in range(0, 8): stairs(color2, vxl, 255, 255, 62 - 7 * k, 3)
+
+    return vxl

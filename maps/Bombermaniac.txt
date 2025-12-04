@@ -1,0 +1,146 @@
+from pyspades.contained import IntelPickup, GrenadePacket
+from random import Random, choice
+from itertools import product
+from time import monotonic
+
+from twisted.internet import reactor
+
+from pyspades.common import Vertex3
+from pyspades.vxl import VXLData
+from pyspades import world
+
+name    = 'Bombermaniac'
+version = '1.0'
+
+KAMIKAZE_DELAY = 1.5
+
+k = 6
+w = h = 3 * k + 1
+
+W, H = 2 * w + 1, 2 * h + 1
+assert W % 3 == H % 3 == 0
+
+x1, x2 = 256 - w, 256 + w
+y1, y2 = 256 - h, 256 + h
+z1, z2 = 53, 62
+
+extensions = dict(
+    water_damage       = 100,
+    arena_blue_spawns  = ((x1 + 4, y1 + 4, 62),),
+    arena_green_spawns = ((x2 - 4, y2 - 4, 62),),
+    boundary_damage    = dict(near = z1, damage = 100)
+)
+
+mask = None
+
+def is_indestructable(connection, x, y, z):
+    return mask.get_solid(x, y, z)
+
+def on_arena_warning(protocol, seconds):
+    return "Watch the BOMBERMAN in {} s".format(seconds)
+
+def on_arena_begin(protocol):
+    flag1, flag2 = protocol.team_1.flag, protocol.team_2.flag
+
+    if flag1.player is None and flag2.player is None:
+        players = list(
+            player for player in protocol.players.values()
+            if player.hp is not None
+            and player.team is not None
+            and not player.team.spectator
+        )
+        if len(players) <= 0: return
+
+        player = choice(players)
+
+        flag = player.team.other.flag
+        flag.player = player
+
+        contained           = IntelPickup()
+        contained.player_id = player.player_id
+        protocol.broadcast_contained(contained, save = True)
+
+def kamikaze_exploded(player):
+    protocol = player.protocol
+
+    if not protocol.arena_running:
+        return
+
+    if player.world_object is None:
+        return
+
+    x, y, z = player.world_object.position.get()
+
+    contained           = GrenadePacket()
+    contained.player_id = player.player_id
+    contained.value     = 0
+    contained.velocity  = (0, 0, 0)
+
+    contained.position = (x, y, z)
+    protocol.broadcast_contained(contained)
+
+    contained.position = (x, y, z - 2.0)
+    protocol.broadcast_contained(contained)
+
+    grenade = world.Grenade(player.protocol.world, 0, Vertex3(x, y, z), None, Vertex3(0, 0, 0))
+    player.grenade_exploded(grenade, dmax = 256)
+
+def on_kill(target, player, kill_type, grenade):
+    protocol = target.protocol
+
+    if not protocol.arena_running:
+        return
+
+    if target.team.other.flag.player is target:
+        protocol.arena_timer_delay = max(protocol.arena_timer_delay, monotonic() + KAMIKAZE_DELAY)
+
+        reactor.callLater(KAMIKAZE_DELAY, kamikaze_exploded, target)
+
+color1 = (170, 170, 170)
+color2 = (210, 210, 210)
+
+def gen_script(basename, seed):
+    global fog
+
+    rgen = Random(seed)
+
+    water  = (190, 190, 190)
+    fog    = (190, 190, 190)
+
+    vxl = VXLData()
+
+    global mask
+    mask = VXLData()
+
+    for x, y in product(range(512), range(512)):
+        vxl.set_point(x, y, 63, water)
+
+    for x, y, z in product(range(x1, x2 + 1), range(y1, y2 + 1), [z1, z2]):
+        vxl.set_point(x, y, z, color1)
+        mask.set_point(x, y, z, (0, 0, 0))
+
+    for i, j in product(range(W // 3), range(H // 3)):
+        if i % 2 == j % 2 == 0:
+            for Δx, Δy in product(range(3), range(3)):
+                for z in range(z1, z2):
+                    x, y = x1 + 3 * i + Δx, y1 + 3 * j + Δy
+
+                    vxl.set_point(x, y, z, color1)
+                    if Δx == 1 or Δy == 1:
+                        mask.set_point(x, y, z, (0, 0, 0))
+        elif i % 2 == j % 2 == 1:
+            pass
+        elif i % 2 == 0 and j % 2 == 1:
+            if rgen.random() < 0.3:
+                for z in range(z1 + 1, z2):
+                    vxl.set_point(x1 + 3 * i + 1, y1 + 3 * j + 0, z, color2)
+                    if z % 2 == 0: vxl.set_point(x1 + 3 * i + 1, y1 + 3 * j + 1, z, color2)
+                    vxl.set_point(x1 + 3 * i + 1, y1 + 3 * j + 2, z, color2)
+        elif i % 2 == 1 and j % 2 == 0:
+            if rgen.random() < 0.3:
+                for z in range(z1 + 1, z2):
+                    vxl.set_point(x1 + 3 * i + 0, y1 + 3 * j + 1, z, color2)
+                    if z % 2 == 0: vxl.set_point(x1 + 3 * i + 1, y1 + 3 * j + 1, z, color2)
+                    vxl.set_point(x1 + 3 * i + 2, y1 + 3 * j + 1, z, color2)
+
+    return vxl

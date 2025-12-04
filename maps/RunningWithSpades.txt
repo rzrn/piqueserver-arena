@@ -1,0 +1,133 @@
+from itertools import product
+from random import Random
+
+from pyspades.constants import MELEE_KILL
+from pyspades.vxl import VXLData
+
+name    = 'RunningWithSpades'
+version = '1.2'
+
+extensions = dict(
+    arena             = True,
+    arena_blue_spawn  = (256 - 54, 254, 59),
+    arena_green_spawn = (256 + 54, 258, 59),
+    water_damage      = 100
+)
+
+def on_arena_heartbeat(protocol, t):
+    if not protocol.arena_running:
+        return
+
+    for player in protocol.players.values():
+        if player.hp is None or player.world_object is None:
+            continue
+
+        wo = player.world_object
+
+        if wo.sprint and not wo.crouch and not wo.sneak:
+            damage = 0
+        elif wo.up or wo.down:
+            damage = 1
+        elif wo.left or wo.right:
+            damage = 2
+        else:
+            damage = 7
+
+        if wo.crouch:
+            damage += 10
+        elif wo.sneak:
+            damage += 5
+        else:
+            pass
+
+        if damage > 0:
+            player.set_hp(player.hp - damage, kill_type = MELEE_KILL)
+
+mask = None
+
+def is_indestructable(connection, x, y, z):
+    return mask.get_solid(x, y, z)
+
+def on_arena_warning(protocol, seconds):
+    return "In {} seconds RUN".format(seconds)
+
+water = (0, 149, 226)
+
+mark = (255, 255, 255)
+road = (221, 125, 125)
+
+def gen_script(basename, seed):
+    global fog
+
+    rgen = Random(seed)
+
+    vxl = VXLData()
+
+    global mask
+    mask = VXLData()
+
+    for x, y in product(range(512), range(512)):
+        vxl.set_point(x, y, 63, water)
+
+    for x, y in product(range(256 - 64, 256 + 65), range(256 - 64, 256 + 65)):
+        dx, dy = x - 256, y - 256
+        d = max(abs(dx), abs(dy))
+
+        if d < 45:
+            pass
+        elif d == 45:
+            for z in range(53, 63):
+                if min(abs(dx), abs(dy)) % 2 == z % 2 == 0:
+                    pass
+                else:
+                    vxl.set_point(x, y, z, mark)
+                    mask.set_point(x, y, z, (0, 0, 0))
+        elif 48 <= d:
+            if d % 4 == 0:
+                for z in 53, 59:
+                    vxl.set_point(x, y, z, mark)
+                    mask.set_point(x, y, z, (0, 0, 0))
+            else:
+                vxl.set_point(x, y, 59, road)
+                if 252 < y < 256 or 256 < y < 260:
+                    mask.set_point(x, y, z, (0, 0, 0))
+
+            if dx % 4 == dy % 4 == 0:
+                for z in range(53, 63):
+                    vxl.set_point(x, y, z, mark)
+                    mask.set_point(x, y, z, (0, 0, 0))
+
+    for i, j in product(range(-16, 17), range(-16, 17)):
+        if max(abs(i), abs(j)) <= 12:
+            continue
+
+        x, y = 256 + 4 * i, 256 + 4 * j
+
+        t = rgen.random()
+
+        if rgen.random() < 0.2 and i != 16:
+            for dx in range(5):
+                vxl.set_point(x + dx, y, 57, mark)
+                vxl.set_point(x + dx, y, 55, mark)
+            if 0.0 <= t < 0.5:
+                for dx in range(5):
+                    vxl.set_point(x + dx, y, 56, mark)
+            elif 0.5 <= t < 0.8:
+                vxl.set_point(x + 2, y, 56, mark)
+            else:
+                pass
+
+        if rgen.random() < 0.2 and j != 16:
+            for dy in range(5):
+                vxl.set_point(x, y + dy, 57, mark)
+                vxl.set_point(x, y + dy, 55, mark)
+
+            if 0.0 <= t < 0.5:
+                for dy in range(5):
+                    vxl.set_point(x, y + dy, 56, mark)
+            elif 0.5 <= t < 0.8:
+                vxl.set_point(x, y + 2, 56, mark)
+            else:
+                pass
+
+    return vxl

@@ -1,0 +1,104 @@
+from pyspades.vxl import VXLData
+from itertools import product
+from random import Random
+
+from pyspades.common import make_color
+
+from arenalib.maptools import (
+    doBlockLinePacket,
+    doBlockBuildPacket,
+    doBlockRemovePacket,
+    HSV3fAsRGB3i
+)
+
+name    = 'MirrorOfSadness'
+version = '0.3'
+
+extensions = dict(
+    arena               = True,
+    arena_blue_spawn    = (256 - 16, 256, 62),
+    arena_green_spawn   = (256 + 16, 256, 62),
+    water_damage        = 100,
+    boundary_blue_team  = dict(
+        left   = 0,
+        right  = 256,
+        damage = 100
+    ),
+    boundary_green_team = dict(
+        left   = 257,
+        right  = 512,
+        damage = 100
+    )
+)
+
+def on_line_build(player, points):
+    x1, y1, z1 = points[0]
+    x2, y2, z2 = points[-1]
+
+    doBlockLinePacket(player, 512 - x1, y1, z1, 512 - x2, y2, z2)
+
+def on_block_build(player, x, y, z):
+    doBlockBuildPacket(player, 512 - x, y, z)
+
+def on_block_removed(player, x, y, z):
+    doBlockRemovePacket(player, 512 - x, y, z)
+
+mask = None
+
+def is_indestructable(connection, x, y, z):
+    return mask.get_solid(x, y, z)
+
+def gen_script(basename, seed):
+    global fog
+
+    rgen = Random(seed)
+
+    hue = rgen.uniform(0.0, 1.0)
+
+    water    = HSV3fAsRGB3i(hue, rgen.uniform(0.5, 0.7), 1.0)
+    concrete = HSV3fAsRGB3i(hue, rgen.uniform(0.3, 0.4), 1.0)
+    steel    = HSV3fAsRGB3i(hue, rgen.uniform(0.1, 0.2), 1.0)
+    fog      = HSV3fAsRGB3i(hue, rgen.uniform(0.1, 0.4), 1.0)
+
+    orig = VXLData()
+
+    for x, y in product(range(512), range(512)):
+        orig.set_point(x, y, 63, water)
+
+    for y in range(256 - 32, 256 + 33):
+        orig.set_point(256, y, 62, steel)
+
+    for Δx, y in product(range(1, 33), range(256 - 32, 256 + 33)):
+        col = steel if Δx == 32 or y == 256 - 32 or y == 256 + 32 else concrete
+
+        orig.set_point(256 - Δx, y, 62, col)
+        orig.set_point(256 + Δx, y, 62, col)
+
+    for Δx in 8, 20:
+        for Δy in range(-6 * 4, 6 * 4 + 1):
+            if Δy % 6 in {1, 2, 3, 4}:
+                for z in 60, 61:
+                    orig.set_point(256 - Δx, 256 + Δy, z, steel)
+                    orig.set_point(256 + Δx, 256 + Δy, z, steel)
+
+    rgba = make_color(*concrete)
+
+    global mask
+    mask = VXLData()
+
+    for N in range(2):
+        d, h = 32 + 3 * N, 56 - 4 * N
+
+        for Δ1 in range(-d, d + 1):
+            if Δ1 % 2 == N % 2:
+                for vxl in mask, orig:
+                    vxl.set_column_fast(256 + Δ1, 256 - d, h, 63, 63, rgba)
+                    vxl.set_column_fast(256 + Δ1, 256 + d, h, 63, 63, rgba)
+                    vxl.set_column_fast(256 - d, 256 + Δ1, h, 63, 63, rgba)
+                    vxl.set_column_fast(256 + d, 256 + Δ1, h, 63, 63, rgba)
+
+                for Δ2 in range(-d, d + 1):
+                    orig.set_point(256 + Δ1, 256 + Δ2, h, concrete)
+                    orig.set_point(256 + Δ2, 256 + Δ1, h, concrete)
+
+    return orig

@@ -1,0 +1,111 @@
+from pyspades.vxl import VXLData
+from itertools import product
+from random import Random
+
+name    = 'ThinRedLine'
+version = '0.1'
+
+hsize = 3
+xdim, ydim, zdim = 5, 4, 3
+width, height = 2 * hsize + 1, 8
+
+y1 = 256 - ydim * (width + 1)
+y2 = 256 + ydim * (width + 1)
+
+extensions = dict(
+    arena               = True,
+    arena_blue_spawn    = (256 - hsize, 256, 62),
+    arena_green_spawn   = (256 + hsize, 256, 62),
+    boundary_blue_team  = dict(
+        left   = 256 - xdim * (width + 1),
+        right  = 256,
+        top    = y1,
+        bottom = y2 + 1,
+        damage = 100
+    ),
+    boundary_green_team = dict(
+        left   = 257,
+        right  = 256 + xdim * (width + 1),
+        top    = y1,
+        bottom = y2 + 1,
+        damage = 100
+    )
+)
+
+def floor(rgen, vxl, Xmin, Xmax, Ymin, Ymax, z0, barriers = True):
+    x1 = 256 + Xmin * (width + 1)
+    x2 = 256 + Xmax * (width + 1)
+    y1 = 256 + Ymin * (width + 1)
+    y2 = 256 + Ymax * (width + 1)
+    z1 = z0 - height + 1
+    z2 = z0 - 1
+
+    def col(x, y):
+        for z in range(z1, z2 + 1):
+            concrete = (255, 255, 255) if (x + y + z) % 2 == 0 else (0, 0, 0)
+            vxl.set_point(x, y, z, concrete)
+
+    for x, y in product(range(x1, x2 + 1), range(y1, y2 + 1)):
+        concrete = (0, 0, 0) if x % 2 == 1 else (255, 255, 255)
+        vxl.set_point(x, y, z0, concrete)
+
+    if barriers is False:
+        return
+
+    prob = 0.15
+
+    for X, Y in product(range(Xmin, Xmax + 1), range(Ymin, Ymax + 1)):
+        xc, yc = 256 + X * (width + 1), 256 + Y * (width + 1)
+
+        col(xc, yc)
+
+        if X < Xmax:
+            if rgen.random() < prob:
+                pass
+            elif rgen.randint(0, 1) == 0:
+                for Δx in range(1, hsize + 2):
+                    col(xc + Δx, yc)
+            else:
+                for Δx in range(hsize + 1, width + 1):
+                    col(xc + Δx, yc)
+
+        if Y < Ymax:
+            if rgen.random() < prob:
+                pass
+            elif rgen.randint(0, 1) == 0:
+                for Δy in range(1, hsize + 2):
+                    col(xc, yc + Δy)
+            else:
+                for Δy in range(hsize + 1, width + 1):
+                    col(xc, yc + Δy)
+
+def gen_script(basename, seed):
+    global fog
+
+    rgen = Random(seed)
+    fog  = (255, 255, 255)
+    vxl  = VXLData()
+
+    for x, y in product(range(512), range(512)):
+        water = (0, 0, 0) if y % 2 == 0 else (255, 255, 255)
+        vxl.set_point(x, y, 63, water)
+
+    for Z in range(zdim + 1):
+        barriers = Z != zdim
+
+        floor(rgen, vxl, -xdim, -1, -ydim, ydim, 62 - Z * height, barriers = barriers)
+        floor(rgen, vxl, +1, +xdim, -ydim, ydim, 62 - Z * height, barriers = barriers)
+
+    for x, y in product(range(256 - width, 257 + width), range(y1, y2 + 1)):
+        concrete = (0, 0, 0) if x % 2 == 1 else (255, 255, 255)
+        vxl.set_point(x, y, 62, concrete)
+
+    redline = (255, 0, 0)
+
+    for y in range(512):
+        vxl.set_point(256, y, 63, redline)
+
+    for y in range(y1, y2 + 1):
+        vxl.set_point(256, y, 62, redline)
+
+    return vxl
