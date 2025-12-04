@@ -619,7 +619,9 @@ def apply_script(protocol, connection, config):
                 return player
             else:
                 rem = list(player for player in team.get_players() if player.hp is not None)
-                if len(rem) <= 0: return
+                if len(rem) <= 0: rem = list(team.get_players()) # prefer alive players
+
+                if len(rem) <= 0: return # team is empty, nothing to return
 
                 player = choice(rem)
 
