@@ -6,23 +6,14 @@ from pyspades.common import make_color
 from pyspades.vxl import VXLData
 
 name    = 'CoalRobbery'
-version = '1.0'
+version = '1.1'
 
-size, x0, y0 = 8, 256, 256
+porosity = 0.15
+size, height = 24, 8
 
-def arena_spawn():
-    for Δx, Δy in product(range(-size, size + 1), range(-size, size + 1)):
-        if Δx % 2 == 1 and Δy % 2 == 1:
-            yield x0 + Δx, y0 + Δy, 59
+x0, y0 = 256, 256
 
-arena_spawn_list = list(arena_spawn())
-
-extensions = dict(
-    arena              = True,
-    arena_blue_spawns  = arena_spawn_list,
-    arena_green_spawns = arena_spawn_list,
-    water_damage       = 100
-)
+extensions = dict(arena = True, water_damage = 100)
 
 def gen_script(basename, seed):
     global fog
@@ -38,14 +29,20 @@ def gen_script(basename, seed):
 
     rgba = make_color(*concrete)
 
+    arena_spawn_list = []
+
     for Δx, Δy in product(range(-size, size + 1), range(-size, size + 1)):
-        if rgen.uniform(0, 1) < 0.9:
-            vxl.set_point(x0 + Δx, y0 + Δy, 62, concrete)
+        x, y = x0 + Δx, y0 + Δy
 
         if Δx % 2 == 0 and Δy % 2 == 0:
-            vxl.set_column_fast(x0 + Δx, y0 + Δy, 61 - 7, 62, 62, rgba)
+            vxl.set_column_fast(x, y, 61 - height, 63, 63, rgba)
+        elif porosity < rgen.uniform(0, 1):
+            vxl.set_point(x, y, 62, concrete)
+            arena_spawn_list.append((x, y, 62))
 
         if Δx % 2 == 0:
-            vxl.set_point(x0 + Δx, y0 + Δy, 61 - 8, concrete)
+            vxl.set_point(x, y, 61 - (height + 1), concrete)
+
+    extensions['arena_blue_spawns'] = extensions['arena_green_spawns'] = arena_spawn_list
 
     return vxl
