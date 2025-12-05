@@ -6,7 +6,7 @@ from pyspades.common import make_color
 from pyspades.vxl import VXLData
 
 name    = 'KurwaHallway'
-version = '1.0'
+version = '1.1'
 
 x0, y0 = 256, 256
 
@@ -25,6 +25,8 @@ extensions = dict(
     arena_green_spawns = arena_spawn_list,
     water_damage       = 100
 )
+
+mask = VXLData()
 
 def gen_script(basename, seed):
     global fog
@@ -49,6 +51,9 @@ def gen_script(basename, seed):
 
     rgba = make_color(*white)
 
+    global mask
+    mask = VXLData()
+
     for i, j in product(range(1, 32), range(1, 32)):
         vxl.set_point(x0 + i, y0 + j, 62, white)
         vxl.set_point(x0 - i, y0 + j, 62, white)
@@ -59,9 +64,17 @@ def gen_script(basename, seed):
             vxl.set_column_fast(x0 - i, y0 + j, 0, 62, 62, rgba)
             vxl.set_column_fast(x0 + i, y0 - j, 0, 62, 62, rgba)
 
+            if j % 2 != 0:
+                mask.set_column_fast(x0 - i, y0 + j, 0, 62, 62, rgba)
+                mask.set_column_fast(x0 + i, y0 - j, 0, 62, 62, rgba)
+
         if j % 2 != 0:
             vxl.set_column_fast(x0 + i, y0 + j, 0, 62, 62, rgba)
             vxl.set_column_fast(x0 - i, y0 - j, 0, 62, 62, rgba)
+
+            if i % 2 != 0:
+                mask.set_column_fast(x0 + i, y0 + j, 0, 62, 62, rgba)
+                mask.set_column_fast(x0 - i, y0 - j, 0, 62, 62, rgba)
 
     for i, j in product(range(32), range(32)):
         for k in 6, 8, 10:
@@ -72,14 +85,5 @@ def gen_script(basename, seed):
 
     return vxl
 
-def is_inaccessible(x, y, z):
-    i, j = floor(x) - x0, floor(y) - y0
-
-    if 32 <= abs(i) or 32 <= abs(j):
-        return True
-    elif i == 0 or j == 0:
-        return False
-    elif (0 < i) == (0 < j):
-        return abs(j) % 2 != 0
-    else:
-        return abs(i) % 2 != 0
+def is_indestructable(connection, x, y, z):
+    return bool(mask.get_solid(x, y, z))
