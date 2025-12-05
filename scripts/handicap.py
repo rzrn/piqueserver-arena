@@ -40,6 +40,9 @@ def apply_script(protocol, connection, config):
             self.miss_probability = 0
 
         def on_hit(self, hit_amount, player, kill_type, grenade):
+            if player is None or player is self or grenade is not None:
+                return connection.on_hit(self, hit_amount, player, kill_type, grenade)
+
             if uniform(0.0, 100.0) < self.miss_probability:
                 return False
             else:
