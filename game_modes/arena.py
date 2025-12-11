@@ -534,10 +534,9 @@ def apply_script(protocol, connection, config):
             if 1.0 <= self.stopwatch:
                 self.stopwatch = 0
 
-                o = self.map_info.info
-
-                if map_on_arena_heartbeat := getattr(o, 'on_arena_heartbeat', None):
-                    map_on_arena_heartbeat(self, self.time)
+                if map_info := self.map_info:
+                    if map_on_arena_heartbeat := getattr(map_info.info, 'on_arena_heartbeat', None):
+                        map_on_arena_heartbeat(self, self.time)
 
                 if self.arena_running and self.arena_timer_delay <= self.time:
                     players_alive = sum(player.is_alive() for player in self.players.values())
