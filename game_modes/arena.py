@@ -341,9 +341,11 @@ def apply_script(protocol, connection, config):
 
             protocol.update_entities()
 
-        def grenade_exploded(self, grenade, dmax = 128):
+        def grenade_exploded(self, grenade, dmax = None):
             if self.name is None:
                 return
+
+            dmax = dmax or self.protocol.grenade_blast_radius
 
             position = grenade.position
             xf, yf, zf = position.get()
@@ -504,6 +506,8 @@ def apply_script(protocol, connection, config):
         # Coordinates to hide the tent and the intel
         hide_coord = (math.inf, math.inf, 128)
 
+        grenade_blast_radius = None
+
         def __init__(self, *w, **kw):
             protocol.__init__(self, *w, **kw)
 
@@ -653,6 +657,8 @@ def apply_script(protocol, connection, config):
             killer.capture_flag()
 
         def on_map_change(self, M):
+            self.grenade_blast_radius = 128.0
+
             extensions = self.map_info.extensions
 
             self.team_1.last_killer = None
