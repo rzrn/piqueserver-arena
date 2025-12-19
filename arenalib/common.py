@@ -11,7 +11,7 @@ class ArenaException(Exception):
 arena_section       = config.section("arena")
 flag_throw_distance = arena_section.option("flag_throw_distance", 5.0).get()
 
-@command('gbrad', 'gbr', admin_only = True)
+@command('gbrad', 'gbr')
 def c_grenade_blast_radius(connection, argval = None):
     """
     Show or set grenade blast radius
@@ -22,12 +22,16 @@ def c_grenade_blast_radius(connection, argval = None):
 
     if argval is None: return "{:.1f}".format(protocol.grenade_blast_radius)
 
-    radius = min(1024, max(0, float(argval)))
-    protocol.grenade_blast_radius = radius
+    # TODO: needs to be synced with `has_permissions` from `piqueserver.commands`
+    if connection.admin or c_grenade_blast_radius.command_name in connection.rights:
+        radius = min(1024, max(0, float(argval)))
+        protocol.grenade_blast_radius = radius
 
-    protocol.broadcast_chat(
-        "{} changed grenade blast radius to {:.1f}".format(connection.name, radius)
-    )
+        protocol.broadcast_chat(
+            "{} changed grenade blast radius to {:.1f}".format(connection.name, radius)
+        )
+    else:
+        return "You aren't allowed to change grenade blast radius."
 
 @command('dropflag', 'throwflag', 'df')
 @player_only
