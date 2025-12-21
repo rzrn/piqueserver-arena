@@ -1,0 +1,91 @@
+from itertools import product
+from random import Random
+
+from pyspades.common import make_color
+from pyspades.vxl import VXLData
+
+name    = 'EternityInterior'
+version = '1.0'
+
+x0, y0, z0 = 256, 256, 52
+xsiz, ysiz = 5, 5
+xlen, ylen = 6, 6
+
+extensions = dict(arena = True, boundary_damage = dict(near = z0, damage = 100))
+
+mask = None
+
+def xwall(grid, i, j):
+    x, y = x0 + i * xlen, y0 + j * ylen
+
+    Δxmax = xlen if i == xsiz - 1 or grid[i + 1, j] == xwall else xlen - 1
+
+    for Δx, Δy, z in product(range(Δxmax), range(ylen), range(z0 + 1, 62)):
+        if Δy % 2 == 0: yield x + Δx, y + Δy, z
+
+def ywall(grid, i, j):
+    x, y = x0 + i * xlen, y0 + j * ylen
+
+    Δymax = ylen if j == ysiz - 1 or grid[i, j + 1] == ywall else ylen - 1
+
+    for Δx, Δy, z in product(range(xlen), range(Δymax), range(z0 + 1, 62)):
+        if Δx % 2 == 0: yield x + Δx, y + Δy, z
+
+walls = [xwall, ywall]
+
+def gen_script(basename, seed):
+    xmin, xmax = x0 - xsiz * xlen, x0 + xsiz * xlen
+    ymin, ymax = y0 - ysiz * ylen, y0 + ysiz * ylen
+
+    global fog
+
+    rgen = Random(seed)
+
+    black, white = (0, 0, 0), (255, 255, 255)
+
+    fog = (255, 255, 255)
+
+    vxl = VXLData()
+
+    col1, col2 = make_color(0, 0, 0), make_color(255, 255, 255)
+
+    for x, y in product(range(512), range(512)):
+        vxl.set_point(x, y, 63, black)
+
+        if x < xmin or x >= xmax or y < ymin or y >= ymax:
+            vxl.set_column_fast(x, y, z0, 63, 63, col1 if rgen.random() < 0.5 else col2)
+
+    grid = {(i, j) : rgen.choice(walls) for i, j in product(range(-xsiz, xsiz), range(-ysiz, ysiz))}
+
+    colors = {
+        (i, j) : white if rgen.random() < 0.5 else black
+        for i, j in product(range(-xsiz, xsiz), range(-ysiz, ysiz))
+    }
+
+    for i, j in product(range(-xsiz, xsiz), range(-ysiz, ysiz)):
+        color = colors[i, j]
+
+        x, y = x0 + i * xlen, y0 + j * ylen
+
+        for Δx, Δy in product(range(xlen), range(ylen)):
+            vxl.set_point(x + Δx, y + Δy, z0, color)
+            vxl.set_point(x + Δx, y + Δy, 62, color)
+
+    global mask
+    mask = vxl.copy()
+
+    for i, j in product(range(-xsiz, xsiz), range(-ysiz, ysiz)):
+        wallgen, color = grid[i, j], colors[i, j]
+
+        for x, y, z in wallgen(grid, i, j):
+            vxl.set_point(x, y, z, color)
+
+    extensions['arena_blue_spawns'] = extensions['arena_green_spawns'] = [
+        (x, y, 62) for x, y in product(range(xmin, xmax), range(ymin, ymax))
+        if vxl.get_solid(x, y, 61) is False
+    ]
+
+    return vxl
+
+def is_indestructable(connection, x, y, z):
+    return bool(mask.get_solid(x, y, z))
