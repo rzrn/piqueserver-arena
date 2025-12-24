@@ -1,0 +1,57 @@
+from pyspades.vxl import VXLData
+from itertools import product
+from random import Random
+
+from arenalib.maptools import HSV3fAsRGB3i
+
+name = 'Tetrapoint'
+version = '1.0'
+
+extensions = dict(
+    arena             = True,
+    arena_blue_spawn  = (256 - 120, 256, 62),
+    arena_green_spawn = (256, 256 - 120, 62),
+    arena_blue_base   = (256 + 112, 256, 62),
+    arena_green_base  = (256, 256 + 112, 62),
+    arena_blue_flag   = (256, 256 - 112, 62),
+    arena_green_flag  = (256 - 112, 256, 62),
+    water_damage      = 100
+)
+
+widthmax, length, slope = 21, 128, 4
+
+width = lambda x: min(widthmax, x // slope)
+
+def rightTriangle():
+    for Δx in range(length):
+        for Δy in range(width(Δx) + 1):
+            yield Δx, Δy
+
+def gen_script(basename, seed):
+    global fog
+
+    rgen = Random(seed)
+
+    hue = rgen.uniform(0.0, 1.0)
+
+    fog      = HSV3fAsRGB3i(hue, 0.50, 0.50)
+    water    = HSV3fAsRGB3i(hue, 0.95, 0.45)
+    concrete = HSV3fAsRGB3i(hue, 0.18, 0.50)
+
+    vxl = VXLData()
+
+    for x, y in product(range(512), range(512)):
+        vxl.set_point(x, y, 63, water)
+
+    for Δx, Δy in rightTriangle():
+        vxl.set_point(256 - Δx, 256 + Δy, 62, concrete)
+        vxl.set_point(256 - Δx, 256 - Δy, 62, concrete)
+        vxl.set_point(256 + Δx, 256 + Δy, 62, concrete)
+        vxl.set_point(256 + Δx, 256 - Δy, 62, concrete)
+
+        vxl.set_point(256 - Δy, 256 + Δx, 62, concrete)
+        vxl.set_point(256 - Δy, 256 - Δx, 62, concrete)
+        vxl.set_point(256 + Δy, 256 + Δx, 62, concrete)
+        vxl.set_point(256 + Δy, 256 - Δx, 62, concrete)
+
+    return vxl
