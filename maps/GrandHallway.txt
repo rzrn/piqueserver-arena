@@ -1,0 +1,66 @@
+from pyspades.vxl import VXLData
+from itertools import product
+from random import Random
+
+from pyspades.common import make_color
+
+from arenalib.maptools import HSV3fAsRGB3i
+
+name = 'GrandHallway'
+version = '1.0'
+cap_limit = 15
+
+extensions = dict(
+    arena             = True,
+    arena_blue_spawn  = (256 - 104, 256, 62),
+    arena_green_spawn = (256 + 104, 256, 62),
+    arena_blue_base   = (256 + 100, 256, 62),
+    arena_green_base  = (256 - 100, 256, 62),
+    arena_blue_flag   = (256 + 112, 256, 62),
+    arena_green_flag  = (256 - 112, 256, 62),
+    water_damage      = 100
+)
+
+y1, y2, length = 4, 10, 96
+
+assert y1 < y2
+
+def gen_script(basename, seed):
+    global fog
+
+    rgen = Random(seed)
+
+    hue = rgen.uniform(0.0, 1.0)
+
+    fog    = HSV3fAsRGB3i(hue, 0.50, 1.00)
+    tone   = HSV3fAsRGB3i(hue, 1.00, 1.00)
+    white  = (255, 255, 255)
+    water1 = HSV3fAsRGB3i(hue, 0.25, 1.00)
+    water2 = HSV3fAsRGB3i(hue, 0.35, 1.00)
+
+    vxl = VXLData()
+
+    for x, y in product(range(512), range(512)):
+        color = water1 if (x + y) % 2 == 0 else water2
+        vxl.set_point(x, y, 63, color)
+
+    color1 = make_color(*white)
+    color2 = make_color(*tone)
+
+    for Δx, Δy in product(range(-length, length + 1), range(-y2, y2 + 1)):
+        vxl.set_point(256 + Δx, 256 + Δy, 62, white if Δx % 2 == 0 else tone)
+
+        color = color1 if (Δx + Δy) % 2 == 0 else color2
+
+        if -y1 <= Δy <= y1:
+            pass
+        else:
+            vxl.set_column_fast(256 + Δx, 256 + Δy, 0, 63, 63, color)
+
+    for Δx, Δy in product(range(2 * y2 + 1), range(-y2, y2 + 1)):
+        color = (255, 255, 255) if Δx % 2 == 0 else tone
+
+        vxl.set_point(256 - length - Δx, 256 + Δy, 62, color)
+        vxl.set_point(256 + length + Δx, 256 + Δy, 62, color)
+
+    return vxl
