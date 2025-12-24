@@ -11,6 +11,12 @@ from pyspades import world
 from piqueserver.commands import player_only, command
 from piqueserver.config import config
 
+arena_cross_color = (255, 31, 31)
+
+def arena_mark_bombsite(vxl, x, y, z):
+    for dx, dy in (0, 0), (-1, -1), (-1, 1), (1, -1), (1, 1):
+        vxl.set_point(x + dx, y + dy, z, arena_cross_color)
+
 arena_section                 = config.section("arena")
 arena_bomb_fuse               = arena_section.option("bomb_fuse", 45.0).get()
 arena_bomb_explosion_duration = arena_section.option("bomb_explosion_duration", 3.0).get()
