@@ -1,0 +1,59 @@
+from pyspades.vxl import VXLData
+from itertools import product
+from random import Random
+
+from arenalib.maptools import HSV3fAsRGB3i
+
+name = 'LongPinpoint'
+version = '1.0'
+cap_limit = 25
+
+extensions = dict(
+    arena             = True,
+    arena_blue_spawn  = (256 - 128, 256, 62),
+    arena_green_spawn = (256 + 128, 256, 62),
+    arena_blue_base   = (256 + 144, 256, 62),
+    arena_green_base  = (256 - 144, 256, 62),
+    arena_blue_flag   = (256 + 112, 256, 62),
+    arena_green_flag  = (256 - 112, 256, 62),
+    water_damage      = 100
+)
+
+length, slope = 163, 5
+
+width = lambda x: (x + slope // 2) // slope
+assert (length + slope // 2) % slope == 0
+
+def rightTriangle():
+    for Δx in range(length):
+        for Δy in range(width(Δx) + 1):
+            yield Δx, Δy
+
+def gen_script(basename, seed):
+    global fog
+
+    rgen = Random(seed)
+
+    hue = rgen.uniform(0.0, 1.0)
+
+    fog = HSV3fAsRGB3i(hue, 0.4, 1.0)
+
+    col1 = HSV3fAsRGB3i(hue, 0.5, 1.00)
+    col2 = HSV3fAsRGB3i(hue, 0.7, 1.00)
+
+    vxl = VXLData()
+
+    for x, y in product(range(512), range(512)):
+        color = col1 if (x + y) % 2 == 0 else col2
+
+        vxl.set_point(x, y, 63, color)
+
+    for Δx, Δy in rightTriangle():
+        color = col1 if (width(Δx) + Δy) % 2 == 0 else col2
+
+        vxl.set_point(256 - Δx, 256 + Δy, 62, color)
+        vxl.set_point(256 - Δx, 256 - Δy, 62, color)
+        vxl.set_point(256 + Δx, 256 + Δy, 62, color)
+        vxl.set_point(256 + Δx, 256 - Δy, 62, color)
+
+    return vxl
