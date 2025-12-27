@@ -1,0 +1,237 @@
+from itertools import product
+from random import Random
+from math import floor
+
+from pyspades.vxl import VXLData
+
+from arenalib.maptools import HSV3fAsRGB3i
+
+name    = 'Chaos'
+version = '1.0'
+
+extensions = dict(water_damage = 100)
+
+mask = None
+
+def is_indestructable(connection, x, y, z):
+    return bool(mask.get_solid(x, y, z))
+
+x0, y0, z0 = 255, 255, 59
+xsize, ysize = 48, 48
+dx, dy, dz = 6, 6, 6
+α, β = 0.60, 0.10
+
+xvalid = lambda x: abs(x - x0) < xsize
+yvalid = lambda y: abs(y - y0) < ysize
+
+valid = lambda x, y, z: xvalid(x) and yvalid(y) and dz <= z < 63
+
+def neighborhood(x, y, z):
+    yield x - dx, y, z
+    yield x + dx, y, z
+    yield x, y - dy, z
+    yield x, y + dy, z
+    yield x, y, z - dz
+    yield x, y, z + dz
+
+class RandomWalk:
+    def __init__(self, randgen, x, y, z):
+        self.randgen = randgen
+
+        self.value = x, y, z
+        self.visited = set()
+
+    def __contains__(self, value):
+        return value in self.visited
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if value := self.value:
+            self.visited.add(value)
+
+            avail = list(
+                r for r in neighborhood(*value)
+                if valid(*r) and r not in self.visited
+            )
+
+            if avail:
+                self.value = self.randgen.choice(avail)
+            else:
+                self.value = None
+
+            return value
+        else:
+            raise StopIteration
+
+def set_voxel(vxl, x, y, z, hue, value = 1.0):
+    vxl.set_point(x, y, z, HSV3fAsRGB3i(hue, 1 - z / 63, value))
+
+def gap(vxl, x, y, z, hue):
+    pass
+
+def xwall(vxl, x, y, z, hue):
+    for Δy, Δz in product(range(1, dy), range(1, dz)):
+        set_voxel(vxl, x, y + Δy, z - Δz, hue)
+
+def ywall(vxl, x, y, z, hue):
+    for Δx, Δz in product(range(1, dx), range(1, dz)):
+        set_voxel(vxl, x + Δx, y, z - Δz, hue)
+
+def zwall(vxl, x, y, z, hue):
+    for Δx, Δy in product(range(1, dx), range(1, dy)):
+        set_voxel(vxl, x + Δx, y + Δy, z, hue)
+
+def xbars2(vxl, x, y, z, hue):
+    for Δy, Δz in product([2, dy - 2], range(1, dz)):
+        set_voxel(vxl, x, y + Δy, z - Δz, hue)
+
+def ybars2(vxl, x, y, z, hue):
+    for Δx, Δz in product([2, dx - 2], range(1, dz)):
+        set_voxel(vxl, x + Δx, y, z - Δz, hue)
+
+def xdoor(vxl, x, y, z, hue):
+    for Δy, Δz in product(range(1, dy), range(1, dz)):
+        if Δy == dy // 2: continue
+
+        set_voxel(vxl, x, y + Δy, z - Δz, hue)
+
+def ydoor(vxl, x, y, z, hue):
+    for Δx, Δz in product(range(1, dx), range(1, dz)):
+        if Δx == dx // 2: continue
+
+        set_voxel(vxl, x + Δx, y, z - Δz, hue)
+
+def xbar1(vxl, x, y, z, hue):
+    for Δy in range(1, dy):
+        set_voxel(vxl, x, y + Δy, z - dz // 2, hue)
+
+def xbar2(vxl, x, y, z, hue):
+    for Δz in range(1, dz):
+        set_voxel(vxl, x, y + dy // 2, z - Δz, hue)
+
+def ybar1(vxl, x, y, z, hue):
+    for Δx in range(1, dx):
+        set_voxel(vxl, x + Δx, y, z - dz // 2, hue)
+
+def ybar2(vxl, x, y, z, hue):
+    for Δz in range(1, dz):
+        set_voxel(vxl, x + dx // 2, y, z - Δz, hue)
+
+def zbar1(vxl, x, y, z, hue):
+    for Δx in range(1, dx):
+        set_voxel(vxl, x + Δx, y + dy // 2, z, hue)
+
+def zbar2(vxl, x, y, z, hue):
+    for Δy in range(1, dy):
+        set_voxel(vxl, x + dx // 2, y + Δy, z, hue)
+
+def xcross(vxl, x, y, z, hue):
+    xbar1(vxl, x, y, z, hue)
+    xbar2(vxl, x, y, z, hue)
+
+def ycross(vxl, x, y, z, hue):
+    ybar1(vxl, x, y, z, hue)
+    ybar2(vxl, x, y, z, hue)
+
+def zcross(vxl, x, y, z, hue):
+    zbar1(vxl, x, y, z, hue)
+    zbar2(vxl, x, y, z, hue)
+
+xfaces = [gap, xwall, xwall, xcross, xbar1, xbar2, xbars2, xdoor]
+yfaces = [gap, ywall, ywall, ycross, ybar1, ybar2, ybars2, ydoor]
+zfaces = [gap, zwall, zwall, zwall, zcross, zbar1, zbar2]
+
+def hedgehog(rgen, vxl, x, y, z1, z2, hue):
+    for z in range(z1, z2 + 1):
+        if (z - z0) % dz == 0:
+            if xvalid(x + dx) and rgen.random() < β:
+                for Δx in range(1, dx + 1):
+                    set_voxel(vxl, x + Δx, y, z, hue, 0.9)
+
+            if xvalid(x - dx) and rgen.random() < β:
+                for Δx in range(1, dx + 1):
+                    set_voxel(vxl, x - Δx, y, z, hue, 0.9)
+
+            if yvalid(y + dy) and rgen.random() < β:
+                for Δy in range(1, dy + 1):
+                    set_voxel(vxl, x, y + Δy, z, hue, 0.9)
+
+            if yvalid(y - dy) and rgen.random() < β:
+                for Δy in range(1, dy + 1):
+                    set_voxel(vxl, x, y - Δy, z, hue, 0.9)
+
+        set_voxel(vxl, x, y, z, hue, 0.9)
+        mask.set_point(x, y, z, (0, 0, 0))
+
+def frame(rgen, vxl, x, y, z, hue):
+    zmax = z if rgen.random() < α else 62
+
+    for Δx, Δy in product([0, dx], [0, dy]):
+        hedgehog(rgen, vxl, x + Δx, y + Δy, z - dz, zmax, hue)
+
+    for Δx, Δy, Δz in product(range(dx + 1), [0, dy], [0, dz]):
+        set_voxel(vxl, x + Δx, y + Δy, z - Δz, hue, 0.9)
+        mask.set_point(x + Δx, y + Δy, z - Δz, (0, 0, 0))
+
+    for Δx, Δy, Δz in product([0, dx], range(dy + 1), [0, dz]):
+        set_voxel(vxl, x + Δx, y + Δy, z - Δz, hue, 0.9)
+        mask.set_point(x + Δx, y + Δy, z - Δz, (0, 0, 0))
+
+def gen_script(basename, seed):
+    global fog
+
+    rgen = Random(seed)
+
+    hue   = rgen.uniform(0.0, 1.0)
+    fog   = HSV3fAsRGB3i(hue, 0.30, 1.00)
+    water = (255, 255, 255)
+
+    vxl = VXLData()
+
+    global mask
+    mask = VXLData()
+
+    for x, y in product(range(512), range(512)):
+        vxl.set_point(x, y, 63, water)
+
+    arena_spawn_set = set()
+
+    randwalk = RandomWalk(rgen, x0, y0, z0)
+
+    for x, y, z in randwalk:
+        frame(rgen, vxl, x, y, z, hue)
+
+        if (x - dz, y, z) not in randwalk:
+            xface1 = rgen.choice(xfaces)
+            xface1(vxl, x, y, z, hue)
+
+        if (x + dz, y, z) not in randwalk:
+            xface2 = rgen.choice(xfaces)
+            xface2(vxl, x + dx, y, z, hue)
+
+        if (x, y - dy, z) not in randwalk:
+            yface1 = rgen.choice(yfaces)
+            yface1(vxl, x, y, z, hue)
+
+        if (x, y + dy, z) not in randwalk:
+            yface2 = rgen.choice(yfaces)
+            yface2(vxl, x, y + dy, z, hue)
+
+        if (x, y, z + dz) not in randwalk:
+            zface1 = rgen.choice(zfaces)
+            zface1(vxl, x, y, z, hue)
+
+        if (x, y, z - dz) not in randwalk:
+            zface2 = rgen.choice(zfaces)
+            zface2(vxl, x, y, z - dz, hue)
+
+        arena_spawn_set.add((x, y))
+
+    global extensions
+    extensions['arena_blue_spawns'] = extensions['arena_green_spawns'] = list(
+        (x, y, 0) for x, y in arena_spawn_set
+    )
+
+    return vxl
