@@ -6,8 +6,9 @@ from pyspades.common import make_color
 
 from arenalib.maptools import HSV3fAsRGB3i
 
-name = 'GrandHallway'
-version = '1.0'
+name      = 'GrandHallway'
+author    = 'izzy (orig.)'
+version   = '1.0'
 cap_limit = 15
 
 extensions = dict(
