@@ -1,0 +1,252 @@
+from itertools import product
+from random import Random
+
+from math import floor, ceil, sin, tau, sqrt
+
+from pyspades.common import make_color
+from pyspades.vxl import VXLData
+
+from arenalib.maptools import HSV3fAsRGB3i
+from arenalib.raycast import cube_line
+
+name      = 'Kurzpeski'
+author    = 'Ananas (orig.)'
+version   = '1.0'
+cap_limit = 15
+
+x0, y0, Δxmin, Δxmax, Δymin, Δymax = 256, 256, -128, 128, -128, 128
+
+mask = None
+
+def is_indestructable(connection, x, y, z):
+    return bool(mask.get_solid(x, y, z))
+
+extensions = dict(
+    arena             = True,
+    arena_blue_spawn  = (x0 - 100, y0, 0),
+    arena_green_flag  = (x0 - 80,  y0, 0),
+    arena_green_base  = (x0 - 112, y0, 0),
+    arena_green_spawn = (x0 + 100, y0, 0),
+    arena_blue_flag   = (x0 + 80,  y0, 0),
+    arena_blue_base   = (x0 + 112, y0, 0),
+    water_damage      = -3,
+    boundary_damage   = dict(
+        left   = x0 - 128,
+        right  = x0 + 128,
+        top    = y0 - 128,
+        bottom = y0 + 128,
+        damage = 150
+    )
+)
+
+def maxabs(x1, y1, x2, y2):
+    return max(abs(x1 - x2), abs(y1 - y2))
+
+def rectangleBoundary(xsize, ysize):
+    yield from product(range(-xsize, xsize + 1), [-ysize, ysize])
+    yield from product([-xsize, xsize], range(-ysize, ysize + 1))
+
+def rectangleInterior(xsize, ysize):
+    yield from product(range(-xsize, xsize + 1), range(-ysize, ysize + 1))
+
+def leaves(rgen, r, Δzmax, x, y, z):
+    rd = floor(r / sqrt(2))
+
+    for Δx, Δy in (-r, 0), (r, 0), (0, -r), (0, r), (rd, rd), (-rd, -rd), (-rd, rd), (rd, -rd):
+        yield from cube_line(x, y, z, x + Δx, y + Δy, z + rgen.randint(1, Δzmax))
+
+def palmtree(rgen, vxl, x1, y1, z1):
+    trunk, foliage = (68, 52, 36), (52, 140, 52)
+
+    Δxmin, Δxmax, Δymin, Δymax, Δzmin, Δzmax = -3, 3, -3, 3, 9, 15
+
+    x2 = x1 + rgen.randint(Δxmin, Δxmax)
+    y2 = y1 + rgen.randint(Δymin, Δymax)
+    z2 = z1 - rgen.randint(Δzmin, Δzmax)
+
+    rmin, rmax = 5, (z1 - z2) // 2
+
+    mask.set_column_fast(x1, y1, z1, 63, 63, 0)
+    for x, y, z in cube_line(x1, y1, z1 + 1, x2, y2, z2):
+        vxl.set_point(x, y, z, trunk)
+        mask.set_point(x, y, z, (0, 0, 0))
+
+    r = rgen.randint(rmin, max(rmin, rmax))
+    for x, y, z in leaves(rgen, r, 3, x2, y2, z2):
+        vxl.set_point(x, y, z, foliage)
+
+def cactus(rgen, vxl, x, y, z):
+    stem = (0, rgen.randint(120, 160), 0)
+    hmin, hmax = 3, 7
+
+    h = rgen.randint(hmin, hmax)
+    for Δz in range(1, h + 1):
+        vxl.set_point(x, y, z - Δz, stem)
+
+    Δzs = list(range(2, h))
+
+    for Δx, Δy in (-1, 0), (1, 0), (0, -1), (0, 1):
+        if bool(Δzs) and rgen.random() < 0.45:
+            Δz = rgen.choice(Δzs); Δzs.remove(Δz)
+            vxl.set_point(x + Δx, y + Δy, z - Δz, stem)
+
+def tower(vxl, x, y):
+    top, checkered1, checkered2 = (0, 128, 0), (80, 40, 0), (230, 230, 230)
+
+    z = vxl.get_z(x, y)
+
+    for Δx, Δy in rectangleInterior(2, 2):
+        Δz1, Δz2 = z - vxl.get_z(x + Δx, y + Δy), 2
+
+        for Δz in range(Δz1, Δz2 + 1):
+            color = checkered1 if (Δx + Δy + Δz) % 2 == 0 else checkered2
+            vxl.set_point(x + Δx, y + Δy, z - Δz, color)
+
+    for Δx, Δy in rectangleInterior(1, 1):
+        if Δx == Δy == 0: continue
+
+        for Δz in range(3, 9):
+            if 3 <= Δz <= 4:
+                color = checkered1 if (Δx + Δy + Δz) % 2 == 0 else checkered2
+            else:
+                color = top
+
+            vxl.set_point(x + Δx, y + Δy, z - Δz, color)
+
+    for Δx, Δy in rectangleInterior(2, 2):
+        vxl.set_point(x + Δx, y + Δy, z - 9, top)
+
+    for Δx, Δy in (-2, -2), (-2, 2), (2, -2), (2, 2), (-2, 0), (2, 0), (0, -2), (0, 2):
+        vxl.set_point(x + Δx, y + Δy, z - 10, top)
+
+def shelter(rgen, vxl, x0, y0):
+    walls = (44, 44, 20)
+    roof = (68, 68, 32)
+    h = 5
+
+    z0 = vxl.get_z(x0, y0)
+
+    Δxyd = rgen.choice([(-2, -1), (-2, 1), (2, -1), (2, 1)])
+    Δyw = rgen.choice([-2, 2])
+
+    for Δx, Δy in rectangleBoundary(2, 2):
+        if (Δx, Δy) == Δxyd: continue
+
+        z1, z2 = vxl.get_z(x0 + Δx, y0 + Δy), z0 - h
+        for z in range(z1, z2, -1):
+            if -1 <= Δx <= 1 and Δy == Δyw and z0 - z == h - 2:
+                continue
+
+            vxl.set_point(x0 + Δx, y0 + Δy, z, walls)
+
+    for Δx, Δy in rectangleInterior(2, 2):
+        vxl.set_point(x0 + Δx, y0 + Δy, z0 - h, roof)
+
+    Δx, Δy = rgen.choice([-1, 1]), rgen.choice([-1, 1])
+    vxl.set_point(x0 + Δx, y0 + Δy, z0 - h - 1, roof)
+
+def genwave(rgen):
+    A = rgen.uniform(0.5, 1.5)
+    ω = tau / rgen.uniform(100, 250)
+    φ = rgen.uniform(0, tau)
+
+    return A, ω, φ
+
+def wave(params, t):
+    return sum(A * sin(ω * t + φ) for A, ω, φ in params)
+
+def normalize(axis):
+    v1, v2 = min(axis.values()), max(axis.values())
+    return {k : (v - v1) / (v2 - v1) for k, v in axis.items() }
+
+def desert(rgen, vxl, Δz1 = 1.0, Δz2 = 4.0):
+    hue = 7 / 48
+    s1, s2 = 0.275, 0.290
+    v1, v2 = 0.890, 0.910
+
+    water = (89, 92, 255)
+
+    lakes = (-48, -64), (48, -64), (-48, 64), (48, 64), (-48, 0), (48, 0)
+
+    for x, y in product(range(512), range(512)):
+        vxl.set_point(x, y, 63, water)
+
+    N = 16
+
+    xwave = [genwave(rgen) for k in range(N)]
+    ywave = [genwave(rgen) for k in range(N)]
+
+    xaxis = {dx : wave(xwave, dx) for dx in range(Δxmin, Δxmax)}
+    yaxis = {dy : wave(ywave, dy) for dy in range(Δymin, Δymax)}
+
+    xaxis = normalize(xaxis)
+    yaxis = normalize(yaxis)
+
+    for x, y in product(range(512), range(512)):
+        vxl.set_point(x, y, 63, water)
+
+    heightmap = dict()
+
+    for Δx, Δy in product(range(Δxmin, Δxmax), range(Δymin, Δymax)):
+        d1 = min(maxabs(Δx, Δy, Δxc, Δyc) for Δxc, Δyc in lakes)
+        h1 = max(d1 - 16, 0)
+        if h1 <= 0: continue
+
+        sat = rgen.uniform(s1, s2)
+        val = rgen.uniform(v1, v2)
+
+        sand = HSV3fAsRGB3i(hue, sat, val)
+
+        t = (xaxis[Δx] + yaxis[Δy]) / 2.0
+        h2 = ceil(t * Δz1 + (1 - t) * Δz2)
+
+        Δzmax = min(h1, h2)
+
+        if 3 <= h1 and (Δx + Δy) % 2 == 0:
+            heightmap[x0 + Δx, y0 + Δy] = 63 - Δzmax
+
+        vxl.set_column_fast(x0 + Δx, y0 + Δy, 63 - Δzmax, 63, 63, make_color(*sand))
+
+    return heightmap
+
+def gen_script(basename, seed):
+    global fog
+
+    rgen = Random(seed)
+
+    vxl = VXLData()
+
+    global mask
+    mask = VXLData()
+
+    heightmap = desert(rgen, vxl)
+
+    def claim(x, y, xsize, ysize):
+        for Δx, Δy in rectangleInterior(xsize, ysize):
+            heightmap.pop((x + Δx, y + Δy), None)
+
+    Δxs = [-90, 0, 90]
+    Δys = [32 * k for k in (-3, -2, -1, 0, 1, 2, 3)]
+
+    for Δx, Δy in product(Δxs, Δys):
+        if Δx == 0 or Δy == 0:
+            tower(vxl, x0 + Δx, y0 + Δy)
+        else:
+            shelter(rgen, vxl, x0 + Δx, y0 + Δy)
+
+        claim(x0 + Δx, y0 + Δy, 4, 4)
+
+    for Δx, Δy in product([-32, 32], [-96, -32, 32, 96]):
+        shelter(rgen, vxl, x0 + Δx, y0 + Δy)
+        claim(x0 + Δx, y0 + Δy, 4, 4)
+
+    available_locations = list((x, y, z) for (x, y), z in heightmap.items())
+
+    genfuncs = [cactus, cactus, cactus, palmtree]
+
+    for k in range(100):
+        x, y, z = rgen.choice(available_locations)
+        genfunc = rgen.choice(genfuncs)
+        genfunc(rgen, vxl, x, y, z)
+
+    return vxl
