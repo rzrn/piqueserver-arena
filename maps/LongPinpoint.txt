@@ -4,8 +4,9 @@ from random import Random
 
 from arenalib.maptools import HSV3fAsRGB3i
 
-name = 'LongPinpoint'
-version = '1.0'
+name      = 'LongPinpoint'
+author    = 'izzy (orig.)'
+version   = '1.0'
 cap_limit = 25
 
 extensions = dict(
