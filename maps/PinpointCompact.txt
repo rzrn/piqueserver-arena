@@ -4,7 +4,8 @@ from random import Random
 
 from arenalib.maptools import HSV3fAsRGB3i
 
-name = 'PinpointCompact'
+name    = 'PinpointCompact'
+author  = 'izzy (orig.)'
 version = '1.0'
 
 extensions = dict(
