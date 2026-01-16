@@ -6,16 +6,16 @@ from pyspades.vxl import VXLData
 
 from arenalib.maptools import HSV3fAsRGB3i
 
-name    = 'Tower'
+name    = 'Tower2'
 version = '2.1'
 
 extensions = dict(
     water_damage      = 100,
     arena_blue_spawn  = (218, 218, 12),
     arena_green_flag  = (222, 222, 12),
-    arena_blue_base   = (256, 251, 6),
+    arena_blue_base   = (256, 252, 0),
     arena_green_spawn = (294, 294, 12),
-    arena_green_base  = (256, 260, 6),
+    arena_green_base  = (256, 260, 0),
     arena_blue_flag   = (290, 290, 12)
 )
 
@@ -24,10 +24,41 @@ mask = None
 def is_indestructable(connection, x, y, z):
     return mask.get_solid(x, y, z)
 
-offset = 60
+def rect(xsize, ysize):
+    yield from product(range(-xsize, xsize + 1), range(-ysize, ysize + 1))
+
+def inner(vxl, color, z1, z2, size):
+    assert z1 % (2 * size + 1) == 0
+    assert z2 % (2 * size + 1) == 0
+
+    rgba = make_color(*color)
+
+    for Δx, Δy in rect(2 * size, 2 * size):
+        x, y = 256 + Δx, 256 + Δy
+
+        # columns around the tower
+        if max(abs(Δx), abs(Δy)) == 2 * size:
+            if (Δx + Δy) % 2 == 0:
+                vxl.set_column_fast(x, y, z1, z2, z2, rgba)
+                mask.set_column_fast(x, y, z1, z2, 0, 0)
+
+        # walls covering the stairs
+        if abs(Δx) <= size and abs(Δy) == size:
+            vxl.set_column_fast(x, y, z1, z2, z2, rgba)
+
+        if abs(Δx) <= size and abs(Δy) < size:
+            # the stairs
+            for z in range(z1 + 1, z2):
+                if (z - 1) % (2 * size + 1) == size - Δx:
+                    vxl.set_point(x, y, z, color)
+        else:
+            # floors
+            for z in range(z1, z2):
+                if z % (2 * size + 1) == 0:
+                    vxl.set_point(x, y, z, color)
 
 def annulus():
-    for Δx, Δy in product(range(-64, 65), range(-64, 65)):
+    for Δx, Δy in rect(64, 64):
         if 32 <= max(abs(Δx), abs(Δy)):
             yield Δx, Δy
 
@@ -37,61 +68,20 @@ def outer(vxl, color, z1, z2):
     for Δx, Δy in annulus():
         x, y = 256 + Δx, 256 + Δy
 
-        P = max(abs(Δx), abs(Δy)) in {32, 64}
+        P = max(abs(Δx), abs(Δy)) in {32, 64} # facade
         Q = 36 <= abs(Δx) <= 40 and 36 <= abs(Δy) <= 40 # spawn
 
         if Δx % 4 == 0 and Δy % 4 == 0:
             vxl.set_column_fast(x, y, z1, z2, z2, rgba)
-            if P or Q: mask.set_column_fast(x, y, z1 + 8, z2, 0, 0)
+
+            if P: mask.set_column_fast(x, y, z1, z2, 0, 0)
+            if Q: mask.set_column_fast(x, y, z1 + 8, z2, 0, 0)
         else:
+            # floors
             for z in range(z1, z2 + 1):
                 if z % 8 == z1 % 8: vxl.set_point(x, y, z, color)
 
             if Q: mask.set_point(x, y, z1 + 8, (0, 0, 0))
-
-def square(vxl, X, Y, Z, size, color):
-    for i in range(-size, size + 1):
-        vxl.set_point(X + i, Y - size, Z, color)
-        vxl.set_point(X + i, Y + size, Z, color)
-        vxl.set_point(X - size, Y + i, Z, color)
-        vxl.set_point(X + size, Y + i, Z, color)
-
-def columns(X, Y, size):
-    for i in range(-size, size + 1):
-        if i % 2 == 0:
-            yield X + i, Y - size
-            yield X + i, Y + size
-            yield X - size, Y + i
-            yield X + size, Y + i
-
-def stairs(color, vxl, X, Y, offset, size):
-    height = 2 * size + 1
-
-    for i in range(-size, size + 1):
-        # stairs
-        for j in range(-size + 1, size):
-            vxl.set_point(X + i, Y + j, offset - (i + size), color)
-
-        # wall
-        for k in range(0, height + 1):
-            vxl.set_point(X + i, Y - size, offset - k, color)
-            vxl.set_point(X + i, Y + size, offset - k, color)
-
-    # platform
-    square(vxl, X, Y, offset - height, size + 1, color)
-    square(vxl, X, Y, offset - height, size + 2, color)
-    square(vxl, X, Y, offset - height, size + 3, color)
-
-def inner(vxl, color, X, Y, size):
-    for k in range(8):
-        stairs(color, vxl, X, Y, 62 - 7 * k, size)
-
-    # columns around the stairs
-    rgba = make_color(*color)
-
-    for x, y in columns(X, Y, size + 3):
-        vxl.set_column_fast(x, y, 62 - 7 * 8, 63, 63, rgba)
-        mask.set_column_fast(x, y, 62 - 7 * 8, 63, 0, 0)
 
 def gen_script(basename, seed):
     global fog
@@ -113,7 +103,7 @@ def gen_script(basename, seed):
     for x, y in product(range(512), range(512)):
         vxl.set_point(x, y, 63, water)
 
-    inner(vxl, color2, 255, 255, 3)
-    outer(vxl, color1, 4, 63)
+    inner(vxl, color2, z1 = 0, z2 = 63, size = 3)
+    outer(vxl, color1, z1 = 4, z2 = 63)
 
     return vxl
