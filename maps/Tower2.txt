@@ -76,12 +76,13 @@ def outer(vxl, color, z1, z2):
 
             if P: mask.set_column_fast(x, y, z1, z2, 0, 0)
             if Q: mask.set_column_fast(x, y, z1 + 8, z2, 0, 0)
-        else:
-            # floors
-            for z in range(z1, z2 + 1):
-                if z % 8 == z1 % 8: vxl.set_point(x, y, z, color)
 
-            if Q: mask.set_point(x, y, z1 + 8, (0, 0, 0))
+        # floors
+        for z in range(z1, z2 + 1):
+            if z % 8 == z1 % 8:
+                vxl.set_point(x, y, z, color)
+
+        if Q: mask.set_point(x, y, z1 + 8, (0, 0, 0))
 
 def gen_script(basename, seed):
     global fog
