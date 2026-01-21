@@ -14,6 +14,7 @@ from pyspades.contained import (
 
 from pyspades.packet import register_packet_handler
 from pyspades.collision import vector_collision
+from pyspades.player import ServerConnection
 from pyspades.common import Vertex3
 from pyspades.constants import *
 from pyspades import world
@@ -37,7 +38,7 @@ assert 5.0 <= arena_break_time
 arena_time_limit = arena_section.option("time_limit", 120.0).get()
 
 # Delay before first round in game (seconds)
-arena_map_change_delay = arena_section.option("map_change_delay", 20.0).get()
+arena_map_change_delay = arena_section.option("map_change_delay", 15.0).get()
 
 def get_team_alive_count(team):
     return sum(player.is_alive() for player in team.get_players())
@@ -65,6 +66,12 @@ def apply_script(protocol, connection, config):
             if team := self.team:
                 if team.last_killer is self:
                     team.last_killer = None
+
+        def on_join(self):
+            ds = self.protocol.map_info.extensions
+            self.respawn_time = ds.get('arena_respawn_time', -1)
+
+            connection.on_join(self)
 
         def on_disconnect(self):
             self.remove_last_killer()
@@ -164,16 +171,27 @@ def apply_script(protocol, connection, config):
             return retval
 
         def get_respawn_time(self):
-            if self.protocol.arena_running:
-                return 0 if self.team.spectator else -1
+            if self.team.spectator:
+                return 0
+            elif self.protocol.arena_running:
+                return self.respawn_time
             else:
                 return 0
 
+        assert connection.respawn is ServerConnection.respawn
+
         def respawn(self):
-            if self.protocol.arena_running and not self.team.spectator:
+            if self.spawn_call is not None:
                 return
 
-            connection.respawn(self)
+            respawn_time = self.get_respawn_time()
+
+            if 0 < respawn_time:
+                self.spawn_call = reactor.callLater(respawn_time, self.spawn)
+            elif respawn_time < 0:
+                return
+            else:
+                self.spawn()
 
         def on_spawn(self, pos):
             retval = connection.on_spawn(self, pos)
@@ -181,9 +199,8 @@ def apply_script(protocol, connection, config):
             self.bomb_defusal_timer = None
             self.has_defuse_kit     = False
 
-            if self.protocol.arena_running:
-                if not self.team.spectator:
-                    self.kill()
+            if self.get_respawn_time() < 0:
+                self.kill()
             else:
                 return retval
 
@@ -217,7 +234,7 @@ def apply_script(protocol, connection, config):
                         "{} team wins the round".format(team.name)
                     )
 
-                protocol.begin_arena_countdown()
+                protocol.begin_arena_countdown(protocol.arena_break_time)
                 protocol.arena_spawn()
 
         def drop_flag(self):
@@ -524,7 +541,9 @@ def apply_script(protocol, connection, config):
             self.arena_running          = False
             self.arena_counting_down    = False
             self.arena_countdown_timers = None
+            self.arena_time_limit       = 0
             self.arena_limit_timer      = math.inf
+            self.arena_heartbeat_rate   = math.inf
 
             self.time          = monotonic()
             self.stopwatch     = 0
@@ -535,7 +554,7 @@ def apply_script(protocol, connection, config):
             self.time += dt
 
             self.stopwatch += dt
-            if 1.0 <= self.stopwatch:
+            if self.arena_heartbeat_rate <= self.stopwatch:
                 self.stopwatch = 0
 
                 if map_info := self.map_info:
@@ -551,7 +570,7 @@ def apply_script(protocol, connection, config):
                     self.players_alive = players_alive
 
                     if self.arena_limit_timer <= self.time:
-                        self.arena_time_limit()
+                        self.on_arena_time_limit()
 
                 for player in self.players.values():
                     if player.hp is None or player.name is None:
@@ -582,7 +601,7 @@ def apply_script(protocol, connection, config):
             if P1 and P2:
                 self.broadcast_chat('Draw')
 
-                self.begin_arena_countdown()
+                self.begin_arena_countdown(self.arena_break_time)
                 self.arena_spawn()
             elif P1:
                 self.arena_win(self.team_2)
@@ -591,7 +610,7 @@ def apply_script(protocol, connection, config):
             else:
                 return
 
-        def arena_time_limit(self):
+        def on_arena_time_limit(self):
             ds = self.map_info.extensions
 
             self.arena_limit_timer = math.inf
@@ -614,7 +633,7 @@ def apply_script(protocol, connection, config):
             else:
                 self.broadcast_chat('Tie')
 
-                self.begin_arena_countdown()
+                self.begin_arena_countdown(self.arena_break_time)
                 self.arena_spawn()
 
         def get_arbitrary_player(self, team):
@@ -657,14 +676,17 @@ def apply_script(protocol, connection, config):
             killer.capture_flag()
 
         def on_map_change(self, M):
+            self.team_1.last_killer = None
+            self.team_2.last_killer = None
+
             self.grenade_blast_radius = 128.0
 
             extensions = self.map_info.extensions
 
-            self.team_1.last_killer = None
-            self.team_2.last_killer = None
-
-            self.respawn_time = 0
+            self.arena_map_change_delay = extensions.get('arena_map_change_delay', arena_map_change_delay)
+            self.arena_break_time       = extensions.get('arena_break_time', arena_break_time)
+            self.arena_time_limit       = extensions.get('arena_time_limit', arena_time_limit)
+            self.arena_heartbeat_rate   = extensions.get('arena_heartbeat_rate', 1.0)
 
             if 'arena_green_spawns' in extensions:
                 self.green_team.arena_spawns = extensions['arena_green_spawns']
@@ -680,8 +702,14 @@ def apply_script(protocol, connection, config):
             else:
                 raise ArenaException('No arena_blue_spawns given in map metadata.')
 
-            self.delay_arena_countdown(arena_map_change_delay)
-            self.begin_arena_countdown()
+            if timers := self.arena_countdown_timers:
+                for timer in timers:
+                    if timer.active():
+                        timer.cancel()
+
+            self.arena_counting_down = False
+            self.begin_arena_countdown(self.arena_map_change_delay)
+
             self.arena_spawn()
 
             return protocol.on_map_change(self, M)
@@ -740,7 +768,11 @@ def apply_script(protocol, connection, config):
                 for player in self.players.values():
                     player.send_chat_warning(warning)
 
-        def begin_arena_countdown(self):
+        def begin_arena_countdown(self, delay):
+            if delay <= 0.0:
+                self.begin_arena(await_players = False)
+                return
+
             if math.isfinite(self.arena_limit_timer):
                 self.arena_limit_timer = math.inf
 
@@ -758,22 +790,18 @@ def apply_script(protocol, connection, config):
                 map_on_arena_end(self)
 
             self.arena_countdown_timers = [
-                reactor.callLater(arena_break_time - 5, self.game_start_warning, 5),
-                reactor.callLater(arena_break_time, self.begin_arena)
+                reactor.callLater(delay - 5, self.game_start_warning, 5),
+                reactor.callLater(delay, self.begin_arena)
             ]
 
-        def delay_arena_countdown(self, amount):
-            if self.arena_counting_down:
-                for timer in self.arena_countdown_timers:
-                    if timer.cancelled == 0 and timer.called == 0:
-                        timer.delay(amount)
-
-        def begin_arena(self):
+        def begin_arena(self, await_players = True):
             self.arena_counting_down = False
-            for team in self.green_team, self.blue_team:
-                if team.count() == 0:
-                    self.begin_arena_countdown()
-                    return
+
+            if await_players is True:
+                for team in self.green_team, self.blue_team:
+                    if team.count() == 0:
+                        self.begin_arena_countdown(self.arena_break_time)
+                        return
 
             self.arena_running = True
             self.killing       = True
@@ -786,12 +814,12 @@ def apply_script(protocol, connection, config):
 
             self.refill_all()
 
-            if arena_time_limit > 0:
+            if self.arena_time_limit > 0:
                 self.broadcast_chat(
-                    "There is a time limit of {:.0f} seconds for this round".format(arena_time_limit)
+                    "There is a time limit of {:.0f} seconds for this round".format(self.arena_time_limit)
                 )
 
-                self.arena_limit_timer = self.time + arena_time_limit
+                self.arena_limit_timer = self.time + self.arena_time_limit
             else:
                 self.arena_limit_timer = math.inf
 
