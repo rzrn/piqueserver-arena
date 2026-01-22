@@ -271,7 +271,10 @@ def apply_script(protocol, connection, config):
         def on_refill(self):
             retval = connection.on_refill(self)
 
-            if self.protocol.arena_running:
+            ds = self.protocol.map_info.extensions
+            arena_has_refill = ds.get('arena_has_refill', False)
+
+            if self.protocol.arena_running and arena_has_refill is False:
                 return False
 
             return retval
