@@ -148,11 +148,17 @@ def apply_script(protocol, connection, config):
                 else:
                     self.grenade_unpin_time = 0
 
-        def hit(self, value, by = None, kill_type = WEAPON_KILL):
-            if kill_type == MELEE_KILL and by is not None and self.team is by.team:
-                return
+        def on_hit(self, damage, player, kill_type, grenade):
+            # Disallow spade-teamkill to prevent accidental kills while digging trenches.
+            if kill_type == MELEE_KILL and player.team is self.team:
+                return False
 
-            return connection.hit(self, value, by = by, kill_type = kill_type)
+            if self.protocol.arena_running is False:
+                self.send_chat_error("The round hasn't started yet")
+
+                return False
+
+            return connection.on_hit(self, damage, player, kill_type, grenade)
 
         def on_kill(self, killer, kill_type, grenade):
             retval = connection.on_kill(self, killer, kill_type, grenade)
@@ -805,7 +811,6 @@ def apply_script(protocol, connection, config):
 
             self.arena_running       = False
             self.arena_counting_down = True
-            self.killing             = False
             self.building            = False
 
             o = self.map_info.info
@@ -828,7 +833,6 @@ def apply_script(protocol, connection, config):
                         return
 
             self.arena_running = True
-            self.killing       = True
             self.building      = self.map_info.extensions.get('building_enabled', True)
 
             o = self.map_info.info
