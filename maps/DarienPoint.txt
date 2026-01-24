@@ -1,0 +1,67 @@
+# Copyright © 2026 rzrn
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+from pyspades.vxl import VXLData
+from itertools import product
+from random import Random
+
+from arenalib.maptools import HSV3fAsRGB3i
+
+name      = 'DarienPoint'
+author    = 'izzy (orig.)'
+version   = '1.0'
+cap_limit = 15
+
+extensions = dict(
+    arena             = True,
+    arena_has_refill  = True,
+    arena_blue_spawn  = (256 - 96, 256, 62),
+    arena_green_spawn = (256 + 96, 256, 62),
+    arena_blue_base   = (256 - 112, 256, 62),
+    arena_green_base  = (256 + 112, 256, 62),
+    arena_blue_flag   = (256 - 24, 256, 62),
+    arena_green_flag  = (256 + 24, 256, 62),
+    water_damage      = 100
+)
+
+gap, width, height = 8, 128, 32
+
+def gen_script(basename, seed):
+    global fog
+
+    rgen = Random(seed)
+
+    hue       = rgen.uniform(0.0, 1.0)
+    fog       = HSV3fAsRGB3i(hue, 0.4, 1.0)
+    water1    = HSV3fAsRGB3i(hue, 0.35, 1.0)
+    water2    = HSV3fAsRGB3i(hue, 0.55, 1.0)
+    concrete1 = HSV3fAsRGB3i(hue, 0.45, 1.0)
+    concrete2 = HSV3fAsRGB3i(hue, 0.65, 1.0)
+
+    vxl = VXLData()
+
+    for x, y in product(range(512), range(512)):
+        vxl.set_point(x, y, 63, water1 if x % 2 == 0 else water2)
+
+    for Δx in range(gap, gap + width):
+        Δymax = min(height, (Δx - gap) // 2)
+
+        for Δy in range(-Δymax, Δymax + 1):
+            color = concrete1 if Δy % 2 == 0 else concrete2
+
+            vxl.set_point(256 - Δx, 256 + Δy, 62, color)
+            vxl.set_point(256 + Δx, 256 + Δy, 62, color)
+
+    return vxl
