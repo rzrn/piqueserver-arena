@@ -290,6 +290,13 @@ def apply_script(protocol, connection, config):
 
                     self.on_flag_drop()
 
+        def on_position_update(self):
+            # “ServerConnection.on_position_update_recieved” does this only for “self.team.base”
+            if vector_collision(self.world_object.position, self.team.other.base):
+                self.check_refill()
+
+            connection.on_position_update(self)
+
         def on_refill(self):
             retval = connection.on_refill(self)
 
