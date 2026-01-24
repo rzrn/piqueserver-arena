@@ -26,6 +26,7 @@ cap_limit = 25
 
 extensions = dict(
     arena             = True,
+    arena_has_refill  = True,
     arena_blue_spawn  = (256 - 128, 256, 62),
     arena_green_spawn = (256 + 128, 256, 62),
     arena_blue_base   = (256 + 144, 256, 62),
