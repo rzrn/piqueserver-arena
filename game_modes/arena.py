@@ -88,12 +88,6 @@ def apply_script(protocol, connection, config):
                 if team.last_killer is self:
                     team.last_killer = None
 
-        def on_join(self):
-            ds = self.protocol.map_info.extensions
-            self.respawn_time = ds.get('arena_respawn_time', -1)
-
-            connection.on_join(self)
-
         def on_disconnect(self):
             self.remove_last_killer()
 
@@ -201,7 +195,8 @@ def apply_script(protocol, connection, config):
             if self.team.spectator:
                 return 0
             elif self.protocol.arena_running:
-                return self.respawn_time
+                ds = self.protocol.map_info.extensions
+                return ds.get('arena_respawn_time', -1)
             else:
                 return 0
 
