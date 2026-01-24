@@ -234,10 +234,18 @@ def apply_script(protocol, connection, config):
             ds = self.protocol.map_info.extensions
 
             if self.protocol.arena_running:
-                if self.team.other.flag.id == BLUE_FLAG:
+                flag = self.team.other.flag
+
+                if flag.z <= self.world_object.position.z:
+                    return False
+
+                if not self.world_object.can_see(flag.x, flag.y, flag.z - 0.5):
+                    return False
+
+                if flag.id == BLUE_FLAG:
                     return 'arena_blue_flag' in ds
 
-                if self.team.other.flag.id == GREEN_FLAG:
+                if flag.id == GREEN_FLAG:
                     return 'arena_green_flag' in ds
 
             return False
