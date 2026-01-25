@@ -231,8 +231,6 @@ def apply_script(protocol, connection, config):
             return x + 0.5, y + 0.5, self.protocol.map.get_z(x, y, z) - 3
 
         def on_flag_take(self):
-            ds = self.protocol.map_info.extensions
-
             if self.protocol.arena_running:
                 flag = self.team.other.flag
 
@@ -241,6 +239,8 @@ def apply_script(protocol, connection, config):
 
                 if not self.world_object.can_see(flag.x, flag.y, flag.z - 0.5):
                     return False
+
+                ds = self.protocol.map_info.extensions
 
                 if flag.id == BLUE_FLAG:
                     return 'arena_blue_flag' in ds
@@ -716,6 +716,13 @@ def apply_script(protocol, connection, config):
             killer.capture_flag()
 
         def on_map_change(self, M):
+            o = self.map_info.info
+
+            self.team_1.name  = getattr(o, 'team1_name',  self.team1_name)
+            self.team_1.color = getattr(o, 'team1_color', self.team1_color)
+            self.team_2.name  = getattr(o, 'team2_name',  self.team2_name)
+            self.team_2.color = getattr(o, 'team2_color', self.team2_color)
+
             self.team_1.last_killer = None
             self.team_2.last_killer = None
 
