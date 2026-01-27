@@ -48,7 +48,7 @@ def c_grenade_blast_radius(connection, argval = None):
     else:
         return "You aren't allowed to change grenade blast radius."
 
-@command('dropflag', 'throwflag', 'df')
+@command('dropflag', 'drop', 'throwflag', 'df')
 @player_only
 def c_dropflag(player):
     """
