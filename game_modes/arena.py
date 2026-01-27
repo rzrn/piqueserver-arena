@@ -232,6 +232,9 @@ def apply_script(protocol, connection, config):
 
         def on_flag_take(self):
             if self.protocol.arena_running:
+                if connection.on_flag_take(self) is False:
+                    return False
+
                 flag = self.team.other.flag
 
                 if flag.z <= self.world_object.position.z:

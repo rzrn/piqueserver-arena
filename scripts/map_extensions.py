@@ -56,12 +56,13 @@ def apply_script(protocol, connection, config):
                 map_on_flag_capture(self)
 
         def on_flag_take(self):
-            connection.on_flag_take(self)
+            if connection.on_flag_take(self) is False:
+                return False
 
             o = self.protocol.map_info.info
 
             if map_on_flag_take := getattr(o, 'on_flag_take', None):
-                map_on_flag_take(self)
+                return map_on_flag_take(self)
 
         def on_flag_drop(self):
             connection.on_flag_drop(self)
