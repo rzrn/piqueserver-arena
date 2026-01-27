@@ -230,6 +230,18 @@ def apply_script(protocol, connection, config):
             x, y, z = choice(self.team.arena_spawns)
             return x + 0.5, y + 0.5, self.protocol.map.get_z(x, y, z) - 3
 
+        def take_flag(self):
+            connection.take_flag(self)
+
+            if self.team.other.flag.player is self:
+                self.on_flag_taken()
+
+        def on_flag_taken(self):
+            o = self.protocol.map_info.info
+
+            if map_on_flag_taken := getattr(o, 'on_flag_taken', None):
+                return map_on_flag_taken(self)
+
         def on_flag_take(self):
             if self.protocol.arena_running:
                 if connection.on_flag_take(self) is False:
