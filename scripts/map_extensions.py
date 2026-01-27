@@ -1,7 +1,7 @@
 # Copyright © 2011 triplefox
 # Copyright © 2011 duckslingers
 # Copyright © 2011–2012 mat^2
-# Copyright © 2024–2025 rzrn
+# Copyright © 2024–2026 rzrn
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -54,6 +54,22 @@ def apply_script(protocol, connection, config):
 
             if map_on_flag_capture := getattr(o, 'on_flag_capture', None):
                 map_on_flag_capture(self)
+
+        def on_flag_take(self):
+            connection.on_flag_take(self)
+
+            o = self.protocol.map_info.info
+
+            if map_on_flag_take := getattr(o, 'on_flag_take', None):
+                map_on_flag_take(self)
+
+        def on_flag_drop(self):
+            connection.on_flag_drop(self)
+
+            o = self.protocol.map_info.info
+
+            if map_on_flag_drop := getattr(o, 'on_flag_drop', None):
+                map_on_flag_drop(self)
 
         def on_block_build(self, x, y, z):
             connection.on_block_build(self, x, y, z)
