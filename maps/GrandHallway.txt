@@ -1,4 +1,4 @@
-# Copyright © 2025 rzrn
+# Copyright © 2025–2026 rzrn
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -28,6 +28,7 @@ cap_limit = 15
 
 extensions = dict(
     arena             = True,
+    arena_has_refill  = True,
     arena_blue_spawn  = (256 - 104, 256, 62),
     arena_green_spawn = (256 + 104, 256, 62),
     arena_blue_base   = (256 + 100, 256, 62),
