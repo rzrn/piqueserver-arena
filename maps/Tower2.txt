@@ -19,12 +19,12 @@ from random import Random
 from pyspades.common import make_color
 from pyspades.vxl import VXLData
 
-from arenalib.maptools import HSV3fAsRGB3i
+from arenalib.maptools import CTF, HSV3fAsRGB3i
 
 name    = 'Tower2'
-version = '2.1'
+version = '2.2'
 
-extensions = dict(
+extensions = CTF(
     water_damage      = 100,
     arena_blue_spawn  = (218, 218, 12),
     arena_green_flag  = (222, 222, 12),
