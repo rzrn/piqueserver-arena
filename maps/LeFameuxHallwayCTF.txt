@@ -1,0 +1,76 @@
+# Copyright © 2025–2026 rzrn
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+from pyspades.vxl import VXLData
+from itertools import product
+from random import Random
+
+from arenalib.maptools import CTF, HSV3fAsRGB3i
+
+name    = 'LeFameuxHallwayCTF'
+author  = 'izzy (orig.)'
+version = '1.0'
+
+extensions = CTF(
+    arena_blue_spawn  = (256 - 104, 256, 62),
+    arena_green_spawn = (256 + 104, 256, 62),
+    arena_blue_base   = (256 - 100, 256, 62),
+    arena_green_base  = (256 + 100, 256, 62),
+    arena_blue_flag   = (256 - 112, 256, 62),
+    arena_green_flag  = (256 + 112, 256, 62),
+    water_damage      = 100
+)
+
+def checkered_cross_pattern(Δx, Δy, Δz):
+    Δxdiv, Δxrem = divmod(Δx, 5)
+    Δydiv, Δyrem = divmod(Δy, 5)
+    Δzdiv, Δzrem = divmod(Δz, 5)
+
+    if Δxrem in {0, 4}:
+        rem = 1 if abs(Δyrem - 2) + abs(Δzrem - 2) <= 1 else 0
+    elif Δyrem in {0, 4}:
+        rem = 1 if abs(Δxrem - 2) + abs(Δzrem - 2) <= 1 else 0
+    elif Δzrem in {0, 4}:
+        rem = 1 if abs(Δxrem - 2) + abs(Δyrem - 2) <= 1 else 0
+    else:
+        rem = 0
+
+    return (Δxdiv + Δydiv + Δzdiv) % 2 == rem
+
+def gen_script(basename, seed):
+    global fog
+
+    rgen = Random(seed)
+
+    hue = rgen.uniform(0.0, 1.0)
+    fog = HSV3fAsRGB3i(hue, 0.50, 1.00)
+
+    stone1, stone2 = HSV3fAsRGB3i(hue, 1.00, 1.00), (255, 255, 255)
+    water1, water2 = HSV3fAsRGB3i(hue, 0.25, 1.00), HSV3fAsRGB3i(hue, 0.35, 1.00)
+
+    vxl = VXLData()
+
+    for x, y in product(range(512), range(512)):
+        color = water1 if (x + y) % 2 == 0 else water2
+        vxl.set_point(x, y, 63, color)
+
+    for Δx, Δy in product(range(-115, 115), range(-15, 15)):
+        Δzmin, Δzmax = 0, 1 if Δx < -90 or 90 <= Δx or -5 <= Δy < 5 else 61
+
+        for Δz in range(Δzmin, Δzmax):
+            color = stone1 if checkered_cross_pattern(Δx, Δy, Δz - 1) else stone2
+            vxl.set_point(256 + Δx, 256 + Δy, 62 - Δz, color)
+
+    return vxl
