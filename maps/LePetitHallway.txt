@@ -1,4 +1,4 @@
-# Copyright © 2025 rzrn
+# Copyright © 2025–2026 rzrn
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -59,17 +59,9 @@ def gen_script(basename, seed):
 
     color = make_color(*walls)
 
-    for Δx, Δy in product(range(-length, length + 1), range(-y2, y2 + 1)):
-        vxl.set_point(256 + Δx, 256 + Δy, 62, walls)
-
-        if -y1 <= Δy <= y1:
-            pass
-        else:
-            vxl.set_column_fast(256 + Δx, 256 + Δy, 0, 63, 63, color)
-
-    for Δx, Δy in product(range(2 * y2 + 1), range(-y2, y2 + 1)):
-        vxl.set_point(256 - length - Δx, 256 + Δy, 62, walls)
-        vxl.set_point(256 + length + Δx, 256 + Δy, 62, walls)
+    for Δx, Δy in product(range(-64 - 13, 64 + 13), range(-6, 7)):
+        Δz = 0 if Δx < -64 or 64 <= Δx or -3 <= Δy <= 3 else 62
+        vxl.set_column_fast(256 + Δx, 256 + Δy, 62 - Δz, 63, 63, color)
 
     global mask
     mask = vxl.copy()

@@ -38,9 +38,11 @@ extensions = dict(
     water_damage      = 100
 )
 
-y1, y2, length = 4, 10, 96
-
-assert y1 < y2
+def striped_pattern(Δx, Δy, Δz):
+    if Δz == 0:
+        return Δx % 2 == 0
+    else:
+        return (Δx + Δy) % 2 == 0
 
 def gen_script(basename, seed):
     global fog
@@ -48,12 +50,10 @@ def gen_script(basename, seed):
     rgen = Random(seed)
 
     hue = rgen.uniform(0.0, 1.0)
+    fog = HSV3fAsRGB3i(hue, 0.50, 1.00)
 
-    fog    = HSV3fAsRGB3i(hue, 0.50, 1.00)
-    tone   = HSV3fAsRGB3i(hue, 1.00, 1.00)
-    white  = (255, 255, 255)
-    water1 = HSV3fAsRGB3i(hue, 0.25, 1.00)
-    water2 = HSV3fAsRGB3i(hue, 0.35, 1.00)
+    stone1, stone2 = HSV3fAsRGB3i(hue, 1.00, 1.00), (255, 255, 255)
+    water1, water2 = HSV3fAsRGB3i(hue, 0.25, 1.00), HSV3fAsRGB3i(hue, 0.35, 1.00)
 
     vxl = VXLData()
 
@@ -61,23 +61,12 @@ def gen_script(basename, seed):
         color = water1 if (x + y) % 2 == 0 else water2
         vxl.set_point(x, y, 63, color)
 
-    color1 = make_color(*white)
-    color2 = make_color(*tone)
+    color1, color2 = make_color(*stone1), make_color(*stone2)
 
-    for Δx, Δy in product(range(-length, length + 1), range(-y2, y2 + 1)):
-        vxl.set_point(256 + Δx, 256 + Δy, 62, white if Δx % 2 == 0 else tone)
+    for Δx, Δy in product(range(-96 - 20, 96 + 20), range(-10, 11)):
+        Δz = 0 if Δx < -96 or 96 <= Δx or -4 <= Δy <= 4 else 62
 
-        color = color1 if (Δx + Δy) % 2 == 0 else color2
-
-        if -y1 <= Δy <= y1:
-            pass
-        else:
-            vxl.set_column_fast(256 + Δx, 256 + Δy, 0, 63, 63, color)
-
-    for Δx, Δy in product(range(2 * y2 + 1), range(-y2, y2 + 1)):
-        color = (255, 255, 255) if Δx % 2 == 0 else tone
-
-        vxl.set_point(256 - length - Δx, 256 + Δy, 62, color)
-        vxl.set_point(256 + length + Δx, 256 + Δy, 62, color)
+        color = color1 if striped_pattern(Δx, Δy, Δz) else color2
+        vxl.set_column_fast(256 + Δx, 256 + Δy, 62 - Δz, 63, 63, color)
 
     return vxl
