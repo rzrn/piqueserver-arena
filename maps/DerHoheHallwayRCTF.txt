@@ -1,0 +1,66 @@
+# Copyright © 2025–2026 rzrn
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+from pyspades.vxl import VXLData
+from itertools import product
+from random import Random
+
+from arenalib.maptools import CTF, HSV3fAsRGB3i
+
+name    = 'DerHoheHallwayRCTF'
+author  = 'izzy (orig.)'
+version = '1.0'
+
+extensions = CTF(
+    arena_blue_spawn  = (256 - 96,  256, 62),
+    arena_green_spawn = (256 + 96,  256, 62),
+    arena_blue_base   = (256 + 100, 256, 62),
+    arena_green_base  = (256 - 100, 256, 62),
+    arena_blue_flag   = (256 + 110, 256, 62),
+    arena_green_flag  = (256 - 110, 256, 62),
+    water_damage      = 100
+)
+
+def cross_pattern(Δx, Δy, Δz):
+    rem = 0 if Δz == 0 else 1
+    return (Δx + Δy + Δz) % 2 == rem
+
+def gen_script(basename, seed):
+    global fog
+
+    rgen = Random(seed)
+
+    hue = rgen.uniform(0.0, 1.0)
+    fog = HSV3fAsRGB3i(hue, 0.50, 1.00)
+
+    stone1, stone2 = HSV3fAsRGB3i(hue, 1.00, 1.00), (255, 255, 255)
+    water1, water2 = HSV3fAsRGB3i(hue, 0.25, 1.00), HSV3fAsRGB3i(hue, 0.35, 1.00)
+
+    vxl = VXLData()
+
+    for x, y in product(range(512), range(512)):
+        rem = 1 if (2 * (x - 1) + y - 1) % 5 == (2 * (y - 1) - x + 1) % 5 == 0 else 0
+        color = water1 if (x + y) % 2 == rem else water2
+
+        vxl.set_point(x, y, 63, color)
+
+    for Δx, Δy in product(range(-112, 112), range(-11, 11)):
+        Δzmin, Δzmax = 0, 1 if Δx < -90 or 90 <= Δx or -4 <= Δy < 4 else 63
+
+        for Δz in range(Δzmin, Δzmax):
+            color = stone1 if cross_pattern(Δx, Δy, Δz) else stone2
+            vxl.set_point(256 + Δx, 256 + Δy, 62 - Δz, color)
+
+    return vxl
