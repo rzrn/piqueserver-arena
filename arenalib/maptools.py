@@ -1,4 +1,4 @@
-# Copyright © 2025 rzrn
+# Copyright © 2025–2026 rzrn
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -14,6 +14,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from colorsys import hsv_to_rgb
+from math import inf
 
 from pyspades.contained import BlockAction, BlockLine, GrenadePacket
 from pyspades.constants import BUILD_BLOCK, DESTROY_BLOCK
@@ -106,3 +107,26 @@ def doGrenadePacket(player, fuse, x, y, z, vx, vy, vz):
     protocol.broadcast_contained(contained)
 
     return grenade
+
+def CTF(**kw):
+    ds = dict(
+        arena                  = True,
+        arena_break_time       = 0,
+        arena_map_change_delay = 0,
+        arena_time_limit       = 0,
+        arena_respawn_time     = 10,
+        arena_heartbeat_rate   = inf,
+        arena_has_refill       = True
+    )
+
+    ds.update(kw)
+    return ds
+
+def respawn_on_flag_sunken(player):
+    team = player.team.other
+
+    if 63 <= team.flag.z:
+        team.set_flag().update()
+
+def refill_on_flag_taken(player):
+    player.refill()
