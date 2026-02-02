@@ -26,12 +26,12 @@ version = '2.2'
 
 extensions = CTF(
     water_damage      = 100,
-    arena_blue_spawn  = (218, 218, 12),
-    arena_green_flag  = (222, 222, 12),
+    arena_blue_spawn  = (218, 218, 28),
+    arena_green_flag  = (198, 198, 28),
     arena_blue_base   = (256, 252, 0),
-    arena_green_spawn = (294, 294, 12),
+    arena_green_spawn = (294, 294, 28),
     arena_green_base  = (256, 260, 0),
-    arena_blue_flag   = (290, 290, 12)
+    arena_blue_flag   = (314, 314, 28)
 )
 
 mask = None
@@ -83,21 +83,16 @@ def outer(vxl, color, z1, z2):
     for Δx, Δy in annulus():
         x, y = 256 + Δx, 256 + Δy
 
-        P = max(abs(Δx), abs(Δy)) in {32, 64} # facade
-        Q = 36 <= abs(Δx) <= 40 and 36 <= abs(Δy) <= 40 # spawn
-
         if Δx % 4 == 0 and Δy % 4 == 0:
             vxl.set_column_fast(x, y, z1, z2, z2, rgba)
 
-            if P: mask.set_column_fast(x, y, z1, z2, 0, 0)
-            if Q: mask.set_column_fast(x, y, z1 + 8, z2, 0, 0)
+            if max(abs(Δx), abs(Δy)) in {32, 64}: # facade
+                mask.set_column_fast(x, y, z1, z2, 0, 0)
 
         # floors
         for z in range(z1, z2 + 1):
             if z % 8 == z1 % 8:
                 vxl.set_point(x, y, z, color)
-
-        if Q: mask.set_point(x, y, z1 + 8, (0, 0, 0))
 
 def gen_script(basename, seed):
     global fog
@@ -121,6 +116,14 @@ def gen_script(basename, seed):
 
     inner(vxl, color2, z1 = 0, z2 = 63, size = 3)
     outer(vxl, color1, z1 = 4, z2 = 63)
+
+    # first floor is indestructable
+    for Δx, Δy in annulus():
+        x, y = 256 + Δx, 256 + Δy
+
+        for z in 62, 61, 60:
+            if vxl.get_solid(x, y, z):
+                mask.set_point(x, y, z, (0, 0, 0))
 
     return vxl
 
