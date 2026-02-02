@@ -19,7 +19,7 @@ from random import Random
 from pyspades.common import make_color
 from pyspades.vxl import VXLData
 
-from arenalib.maptools import CTF, HSV3fAsRGB3i, respawn_on_flag_sunken
+from arenalib.maptools import CTF, HSV3fAsRGB3i, respawn_on_flag_sunken, refill_on_flag_taken
 
 name    = 'Tower2'
 version = '2.2'
@@ -127,4 +127,5 @@ def gen_script(basename, seed):
 
     return vxl
 
-on_flag_drop = respawn_on_flag_sunken
+on_flag_drop  = respawn_on_flag_sunken
+on_flag_taken = refill_on_flag_taken
