@@ -72,6 +72,9 @@ def inner(vxl, color, z1, z2, size):
                 if z % (2 * size + 1) == 0:
                     vxl.set_point(x, y, z, color)
 
+        if vxl.get_solid(x, y, 56): # to prevent the tent from falling into the water
+            mask.set_point(x, y, 56, (0, 0, 0))
+
 def annulus():
     for Δx, Δy in rect(64, 64):
         if 32 <= max(abs(Δx), abs(Δy)):
@@ -93,6 +96,11 @@ def outer(vxl, color, z1, z2):
         for z in range(z1, z2 + 1):
             if z % 8 == z1 % 8:
                 vxl.set_point(x, y, z, color)
+
+        # first floor is indestructable
+        for z in 62, 61, 60:
+            if vxl.get_solid(x, y, z):
+                mask.set_point(x, y, z, (0, 0, 0))
 
 def gen_script(basename, seed):
     global fog
@@ -116,14 +124,6 @@ def gen_script(basename, seed):
 
     inner(vxl, color2, z1 = 0, z2 = 63, size = 3)
     outer(vxl, color1, z1 = 4, z2 = 63)
-
-    # first floor is indestructable
-    for Δx, Δy in annulus():
-        x, y = 256 + Δx, 256 + Δy
-
-        for z in 62, 61, 60:
-            if vxl.get_solid(x, y, z):
-                mask.set_point(x, y, z, (0, 0, 0))
 
     return vxl
 
