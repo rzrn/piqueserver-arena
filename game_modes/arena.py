@@ -69,11 +69,12 @@ def is_team_dead(team):
 
 def apply_script(protocol, connection, config):
     class ArenaConnection(connection):
-        last_spadenade_usage = 0
-        last_death_time      = 0
-        grenade_unpin_time   = 0
-        bomb_defusal_timer   = None
-        has_defuse_kit       = False
+        last_spadenade_usage   = 0
+        last_death_time        = 0
+        grenade_unpin_time     = 0
+        bomb_defusal_timer     = None
+        has_defuse_kit         = False
+        has_autorefill_enabled = False
 
         def is_alive(self):
             if wo := self.world_object:
@@ -312,6 +313,18 @@ def apply_script(protocol, connection, config):
                     protocol.broadcast_contained(contained, save = True)
 
                     self.on_flag_drop()
+
+        def on_block_build(self, x, y, z):
+            connection.on_block_build(self, x, y, z)
+
+            if self.has_autorefill_enabled:
+                self.refill()
+
+        def on_line_build(self, points):
+            connection.on_line_build(self, points)
+
+            if self.has_autorefill_enabled:
+                self.refill()
 
         def on_position_update(self):
             # “ServerConnection.on_position_update_recieved” does this only for “self.team.base”

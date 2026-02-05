@@ -15,7 +15,7 @@
 
 from pyspades.contained import GrenadePacket, IntelDrop
 
-from piqueserver.commands import player_only, command
+from piqueserver.commands import player_only, command, get_player
 from piqueserver.config import config
 
 from arenalib.raycast import line_rasterizer
@@ -25,6 +25,30 @@ class ArenaException(Exception):
 
 arena_section       = config.section("arena")
 flag_throw_distance = arena_section.option("flag_throw_distance", 5.0).get()
+
+@command('toggleautorefill', 'autorefill', 'tarl', admin_only = True)
+def c_toggle_autorefill(connection, argval = None):
+    """
+    Toggle automatic refill for a given player
+    /toggleautorefill or /tarl [player]
+    """
+
+    protocol = connection.protocol
+
+    player = connection if argval is None else get_player(connection.protocol, argval)
+    player.has_autorefill_enabled = not player.has_autorefill_enabled
+
+    if not isinstance(player, protocol.connection_class):
+        return "Only players can use this command"
+
+    if player.has_autorefill_enabled:
+        protocol.broadcast_chat(
+            "{} enabled automatic refill for {}".format(connection.name, player.name)
+        )
+    else:
+        protocol.broadcast_chat(
+            "{} disabled automatic refill for {}".format(connection.name, player.name)
+        )
 
 @command('gbrad', 'gbr')
 def c_grenade_blast_radius(connection, argval = None):
