@@ -48,6 +48,8 @@ from arenalib.defusal import (
 )
 from arenalib.common import ArenaException, wall_tunnel
 
+MAX_TEAM_NAME_SIZE = 9
+
 arena_section = config.section("arena")
 
 # How long should be spent between rounds in arena (seconds)
@@ -750,6 +752,9 @@ def apply_script(protocol, connection, config):
             self.team_1.color = getattr(o, 'team1_color', self.team1_color)
             self.team_2.name  = getattr(o, 'team2_name',  self.team2_name)
             self.team_2.color = getattr(o, 'team2_color', self.team2_color)
+
+            self.team_1.name = self.team_1.name[:MAX_TEAM_NAME_SIZE]
+            self.team_2.name = self.team_2.name[:MAX_TEAM_NAME_SIZE]
 
             self.team_1.last_killer = None
             self.team_2.last_killer = None
