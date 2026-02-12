@@ -285,36 +285,47 @@ def apply_script(protocol, connection, config):
                 protocol.begin_arena_countdown(protocol.arena_break_time)
                 protocol.arena_spawn()
 
-        def drop_flag(self):
+        def drop_flag(self, loc = None):
             protocol = self.protocol
 
             for flag in protocol.team_1.flag, protocol.team_2.flag:
-                if flag.player is self:
-                    ds = protocol.map_info.extensions
+                if flag.player is not self:
+                    continue
 
-                    has_blue  = flag.id == BLUE_FLAG  and 'arena_blue_flag'  in ds
-                    has_green = flag.id == GREEN_FLAG and 'arena_green_flag' in ds
+                ds = protocol.map_info.extensions
 
-                    if has_blue or has_green:
-                        r = flag.player.world_object.position
+                if flag.team is protocol.team_1:
+                    team_has_flag = 'arena_blue_flag' in ds
+                elif flag.team is protocol.team_2:
+                    team_has_flag = 'arena_green_flag' in ds
+                else:
+                    team_has_flag = False
 
-                        x, y, z = protocol.map.get_safe_coords(r.x, r.y, r.z)
-                        loc = x, y, protocol.map.get_z(x, y, z)
-                    else:
-                        loc = protocol.hide_coord
+                if loc is not None:
+                    pass
+                elif team_has_flag is False:
+                    loc = protocol.hide_coord
+                elif wo := self.world_object:
+                    r = wo.position
 
-                    flag.set(*loc)
-                    flag.player = None
+                    x, y, z = protocol.map.get_safe_coords(r.x, r.y, r.z)
+                    loc = x, y, protocol.map.get_z(x, y, z)
+                else:
+                    loc = protocol.hide_coord
 
-                    contained           = IntelDrop()
-                    contained.player_id = self.player_id
-                    contained.x         = flag.x
-                    contained.y         = flag.y
-                    contained.z         = flag.z
+                flag.set(*loc)
+                flag.player = None
 
-                    protocol.broadcast_contained(contained, save = True)
+                contained           = IntelDrop()
+                contained.player_id = self.player_id
+                contained.x         = flag.x
+                contained.y         = flag.y
+                contained.z         = flag.z
 
-                    self.on_flag_drop()
+                protocol.broadcast_contained(contained, save = True)
+
+                self.on_flag_drop()
+                protocol.on_entity_updated(flag)
 
         def on_block_build(self, x, y, z):
             connection.on_block_build(self, x, y, z)

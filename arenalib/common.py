@@ -72,13 +72,14 @@ def c_grenade_blast_radius(connection, argval = None):
     else:
         return "You aren't allowed to change grenade blast radius."
 
-@command('dropflag', 'drop', 'throwflag', 'df')
+@command('dropflag', 'dropintel', 'drop', 'throwflag', 'throwintel', 'df')
 @player_only
 def c_dropflag(player):
     """
     Drop the intel
     /dropflag or /df
     """
+
     if wo := player.world_object:
         if player.hp is None or wo.dead:
             return
@@ -102,27 +103,16 @@ def c_dropflag(player):
         if flag is None:
             return
 
-        if flag.player is player:
-            if dest := wo.cast_ray(flag_throw_distance):
-                loc = dest
-            else:
-                v = wo.position + wo.orientation * flag_throw_distance
-                loc = protocol.get_drop_location(v.get())
+        if flag.player is not player:
+            return "You don't have the intel"
 
-            flag.set(*loc)
-            flag.player = None
-
-            contained           = IntelDrop()
-            contained.player_id = player.player_id
-            contained.x         = flag.x
-            contained.y         = flag.y
-            contained.z         = flag.z
-
-            protocol.broadcast_contained(contained, save = True)
-
-            player.on_flag_drop()
+        if dest := wo.cast_ray(flag_throw_distance):
+            loc = dest
         else:
-            return "You don't have the intel."
+            dest = wo.position + wo.orientation * flag_throw_distance
+            loc = protocol.get_drop_location(dest.get())
+
+        player.drop_flag(loc)
 
 def wall_tunnel(player):
     if player.world_object is None:
