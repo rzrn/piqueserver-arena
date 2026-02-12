@@ -30,6 +30,15 @@ def apply_boundary_damage(player, o):
         player.environment_hit(o.get('damage', 100))
 
 def apply_script(protocol, connection, config):
+    class MapExtensionProtocol(protocol):
+        def on_entity_updated(self, entity):
+            protocol.on_entity_updated(self, entity)
+
+            o = self.map_info.info
+
+            if map_on_entity_updated := getattr(o, 'on_entity_updated', None):
+                map_on_entity_updated(self, entity)
+
     class MapExtensionConnection(connection):
         def on_grenade_thrown(self, grenade):
             connection.on_grenade_thrown(self, grenade)
@@ -165,4 +174,4 @@ def apply_script(protocol, connection, config):
 
             return connection.on_command(self, command, parameters)
 
-    return protocol, MapExtensionConnection
+    return MapExtensionProtocol, MapExtensionConnection

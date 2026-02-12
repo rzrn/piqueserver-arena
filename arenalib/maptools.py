@@ -19,6 +19,7 @@ from math import inf
 from pyspades.contained import BlockAction, BlockLine, GrenadePacket
 from pyspades.constants import BUILD_BLOCK, DESTROY_BLOCK
 from pyspades.common import Vertex3
+from pyspades.entities import Flag
 from pyspades import world
 
 from arenalib.raycast import cube_line
@@ -122,11 +123,10 @@ def CTF(**kw):
     ds.update(kw)
     return ds
 
-def respawn_on_flag_sunken(player):
-    team = player.team.other
-
-    if 63 <= team.flag.z:
-        team.set_flag().update()
+def respawn_on_flag_sunken(protocol, entity):
+    if isinstance(entity, Flag):
+        if entity.player is not None and 63 <= entity.z:
+            entity.team.set_flag().update()
 
 def refill_on_flag_taken(player):
     player.refill()
