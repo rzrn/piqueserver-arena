@@ -125,7 +125,7 @@ def CTF(**kw):
 
 def respawn_on_flag_sunken(protocol, entity):
     if isinstance(entity, Flag):
-        if entity.player is not None and 63 <= entity.z:
+        if entity.player is None and 63 <= entity.z:
             entity.team.set_flag().update()
 
 def refill_on_flag_taken(player):
