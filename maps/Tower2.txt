@@ -127,5 +127,5 @@ def gen_script(basename, seed):
 
     return vxl
 
-on_flag_drop  = respawn_on_flag_sunken
-on_flag_taken = refill_on_flag_taken
+on_entity_updated = respawn_on_flag_sunken
+on_flag_taken     = refill_on_flag_taken
