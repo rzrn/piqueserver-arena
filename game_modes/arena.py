@@ -339,6 +339,12 @@ def apply_script(protocol, connection, config):
             if self.has_autorefill_enabled:
                 self.refill()
 
+        def on_block_removed(self, x, y, z):
+            connection.on_block_removed(self, x, y, z)
+
+            if self.tool == WEAPON_TOOL:
+                self.try_disable_autorefill()
+
         def on_position_update(self):
             # “ServerConnection.on_position_update_recieved” does this only for “self.team.base”
             if vector_collision(self.world_object.position, self.team.other.base):
@@ -358,6 +364,8 @@ def apply_script(protocol, connection, config):
             return retval
 
         def on_grenade(self, fuse):
+            self.try_disable_autorefill()
+
             self.grenade_unpin_time = 0
 
             if self.protocol.arena_running:
@@ -558,6 +566,7 @@ def apply_script(protocol, connection, config):
                 elif retval is not None:
                     hit_amount = retval
 
+                self.try_disable_autorefill()
                 player.hit(hit_amount, self, kill_type)
 
         @register_packet_handler(WeaponInput)
@@ -597,6 +606,14 @@ def apply_script(protocol, connection, config):
                 self.try_give_defuse_kit()
             else:
                 connection.check_refill(self)
+
+        def try_disable_autorefill(self):
+            if self.has_autorefill_enabled is True:
+                self.has_autorefill_enabled = False
+
+                self.protocol.broadcast_chat(
+                    "Automatic refill has been disabled for {}".format(self.name)
+                )
 
     class ArenaProtocol(protocol):
         game_mode = CTF_MODE
