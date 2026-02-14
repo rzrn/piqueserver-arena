@@ -77,6 +77,7 @@ def apply_script(protocol, connection, config):
         bomb_defusal_timer     = None
         has_defuse_kit         = False
         has_autorefill_enabled = False
+        last_autorefill_given  = 0
 
         def is_alive(self):
             if wo := self.world_object:
@@ -223,6 +224,12 @@ def apply_script(protocol, connection, config):
 
             self.bomb_defusal_timer = None
             self.has_defuse_kit     = False
+
+            ds = self.protocol.map_info.extensions
+            arena_give_autorefill = ds.get('arena_give_autorefill', False)
+
+            if arena_give_autorefill:
+                self.has_autorefill_enabled = False
 
             if self.get_respawn_time() < 0:
                 self.kill()
@@ -588,6 +595,20 @@ def apply_script(protocol, connection, config):
 
                 self.send_chat_warning("You've been given a defuse kit.")
 
+        def try_give_autorefill(self):
+            if self.has_autorefill_enabled:
+                return
+            else:
+                self.has_autorefill_enabled = True
+
+                self.send_chat_warning("You've been given an autorefill.")
+
+        def try_disable_autorefill(self):
+            if self.has_autorefill_enabled:
+                self.has_autorefill_enabled = False
+
+                self.send_chat("Automatic refill has been disabled for you")
+
         def check_refill(self):
             if self.protocol.arena_running is False:
                 return
@@ -602,18 +623,17 @@ def apply_script(protocol, connection, config):
 
             if self.team is self.protocol.blue_team and green_has_bomb:
                 self.try_give_defuse_kit()
-            elif self.team is self.protocol.green_team and blue_has_bomb:
+
+            if self.team is self.protocol.green_team and blue_has_bomb:
                 self.try_give_defuse_kit()
-            else:
-                connection.check_refill(self)
 
-        def try_disable_autorefill(self):
-            if self.has_autorefill_enabled is True:
-                self.has_autorefill_enabled = False
+            arena_give_autorefill = ds.get('arena_give_autorefill', False)
 
-                self.protocol.broadcast_chat(
-                    "Automatic refill has been disabled for {}".format(self.name)
-                )
+            if arena_give_autorefill and monotonic() - self.last_autorefill_given > self.protocol.refill_interval:
+                self.last_autorefill_given = monotonic()
+                self.try_give_autorefill()
+
+            connection.check_refill(self)
 
     class ArenaProtocol(protocol):
         game_mode = CTF_MODE
