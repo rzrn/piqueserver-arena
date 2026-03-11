@@ -13,9 +13,13 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from time import monotonic
+
 from pyspades.contained import GrenadePacket, IntelDrop
+from pyspades.common import prettify_timespan
 
 from piqueserver.commands import player_only, command, get_player
+from piqueserver.utils import timeparse
 from piqueserver.config import config
 
 from arenalib.raycast import line_rasterizer
@@ -26,6 +30,37 @@ class ArenaException(Exception):
 arena_section       = config.section("arena")
 flag_throw_distance = arena_section.option("flag_throw_distance", 5.0).get()
 
+@command('teamkillcount', 'tkc')
+def c_teamkillcount(connection, nickname = None, timeval = None):
+    """
+    Report a number of teamkills for a given period of time
+    /teamkillcount or /tkc [player] [timedelta]
+    """
+
+    protocol = connection.protocol
+
+    player = connection if nickname is None else get_player(protocol, nickname)
+
+    if not isinstance(player, protocol.connection_class):
+        return "This command applies to players only"
+
+    Δt = 3600 if timeval is None else timeparse(timeval)
+    if Δt is None: return "'{}' was not recognized as a valid time value".format(timeval)
+
+    t0 = monotonic()
+
+    N = sum(t0 - t <= Δt for t in player.teamkill_time_deque)
+    M = player.teamkill_time_deque.maxlen
+
+    if M is None or N < M:
+        return "{}: {} teamkill(s) in {}".format(
+            player.name, N, prettify_timespan(Δt)
+        )
+    else:
+        return "{}: >{} teamkill(s) in {}".format(
+            player.name, M, prettify_timespan(Δt)
+        )
+
 @command('toggleautorefill', 'autorefill', 'tarl', admin_only = True)
 def c_toggle_autorefill(connection, argval = None):
     """
@@ -35,11 +70,12 @@ def c_toggle_autorefill(connection, argval = None):
 
     protocol = connection.protocol
 
-    player = connection if argval is None else get_player(connection.protocol, argval)
-    player.has_autorefill_enabled = not player.has_autorefill_enabled
+    player = connection if argval is None else get_player(protocol, argval)
 
     if not isinstance(player, protocol.connection_class):
-        return "Only players can use this command"
+        return "This command applies to players only"
+
+    player.has_autorefill_enabled = not player.has_autorefill_enabled
 
     if player.has_autorefill_enabled:
         protocol.broadcast_chat(

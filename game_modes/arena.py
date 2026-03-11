@@ -21,6 +21,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from collections import deque
 from itertools import product
 from time import monotonic
 from random import choice
@@ -78,6 +79,11 @@ def apply_script(protocol, connection, config):
         has_defuse_kit         = False
         has_autorefill_enabled = False
         last_autorefill_given  = 0
+
+        def __init__(self, *w, **kw):
+            connection.__init__(self, *w, **kw)
+
+            self.teamkill_time_deque = deque(maxlen = 30)
 
         def is_alive(self):
             if wo := self.world_object:
@@ -163,8 +169,11 @@ def apply_script(protocol, connection, config):
 
             if retval is False: return False
 
-            if killer is not None and killer.team is not self.team:
-                killer.team.last_killer = killer
+            if killer is not None:
+                if killer.team is not self.team:
+                    killer.team.last_killer = killer
+                elif killer is not self:
+                    killer.teamkill_time_deque.appendleft(monotonic())
 
             self.last_death_time = monotonic()
 
