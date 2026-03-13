@@ -28,7 +28,26 @@ class ArenaException(Exception):
     pass
 
 arena_section       = config.section("arena")
+afk_time_threshold  = arena_section.option("afk_time_threshold", 15.0).get()
 flag_throw_distance = arena_section.option("flag_throw_distance", 5.0).get()
+
+@command('afktimer', 'afk')
+def c_afktimer(connection, nickname):
+    """
+    Report AFK time of a given player
+    /afktimer or /afk <player>
+    """
+
+    protocol = connection.protocol
+    player = get_player(protocol, nickname)
+
+    if t := player.last_activity_time:
+        Δt = monotonic() - t
+
+        if Δt < afk_time_threshold:
+            return "{}: was active recently".format(player.name)
+        else:
+            return "{}: inactive for {}".format(player.name, prettify_timespan(Δt))
 
 @command('teamkillcount', 'tkc')
 def c_teamkillcount(connection, nickname = None, timeval = None):

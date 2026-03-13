@@ -84,6 +84,7 @@ def apply_script(protocol, connection, config):
             connection.__init__(self, *w, **kw)
 
             self.teamkill_time_deque = deque(maxlen = 30)
+            self.last_activity_time = None
 
         def is_alive(self):
             if wo := self.world_object:
@@ -97,6 +98,15 @@ def apply_script(protocol, connection, config):
             if team := self.team:
                 if team.last_killer is self:
                     team.last_killer = None
+
+        def on_chat(self, value, is_global_message):
+            self.last_activity_time = monotonic()
+
+            return connection.on_chat(self, value, is_global_message)
+
+        def on_command(self, command, parameters):
+            connection.on_command(self, command, parameters)
+            self.last_activity_time = monotonic()
 
         def on_disconnect(self):
             self.remove_last_killer()
@@ -345,18 +355,21 @@ def apply_script(protocol, connection, config):
 
         def on_block_build(self, x, y, z):
             connection.on_block_build(self, x, y, z)
+            self.last_activity_time = monotonic()
 
             if self.has_autorefill_enabled:
                 self.refill()
 
         def on_line_build(self, points):
             connection.on_line_build(self, points)
+            self.last_activity_time = monotonic()
 
             if self.has_autorefill_enabled:
                 self.refill()
 
         def on_block_removed(self, x, y, z):
             connection.on_block_removed(self, x, y, z)
+            self.last_activity_time = monotonic()
 
             if self.tool == WEAPON_TOOL:
                 self.try_disable_autorefill()
@@ -367,6 +380,12 @@ def apply_script(protocol, connection, config):
                 self.check_refill()
 
             connection.on_position_update(self)
+            self.last_activity_time = monotonic()
+
+        def on_orientation_update(self, x, y, z):
+            self.last_activity_time = monotonic()
+
+            return connection.on_orientation_update(self, x, y, z)
 
         def on_refill(self):
             retval = connection.on_refill(self)
@@ -399,6 +418,7 @@ def apply_script(protocol, connection, config):
             protocol.arena_timer_delay = max(protocol.arena_timer_delay, monotonic() + grenade.fuse)
 
             connection.on_grenade_thrown(self, grenade)
+            self.last_activity_time = monotonic()
 
         def on_spadenade_attempt(self):
             protocol = self.protocol
@@ -595,6 +615,7 @@ def apply_script(protocol, connection, config):
                         self.grenade_unpin_time = 0
 
             connection.on_weapon_input_recieved(self, contained)
+            self.last_activity_time = monotonic()
 
         def try_give_defuse_kit(self):
             if self.has_defuse_kit:
