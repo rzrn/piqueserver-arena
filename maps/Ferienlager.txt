@@ -1,0 +1,98 @@
+# Copyright © 2026 rzrn
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+"""
+This is a dedicated building map. All changes are automatically saved in the “saves/<seed>.vxl” file,
+which you can load later, so that you may switch to another map, player a match on it and return to this sandbox.
+To load map with the seed N, use `/loadmap Ferienlager#N` command. This way you can manage multiple saves.
+
+In particular, it means that you can save an arbitrary map as “saves/X.vxl” and load it as `/loadmap Ferienlager#X`.
+"""
+
+from os.path import isfile, dirname
+from itertools import product
+from os import makedirs
+
+from twisted.internet.task import LoopingCall
+
+from pyspades.common import make_color
+from pyspades.vxl import VXLData
+
+from arenalib.maptools import CTF
+
+name        = "Ferienlager"
+team1_name  = "Children"
+team1_color = (255, 0, 0)
+team2_name  = "Adults"
+team2_color = (0, 0, 255)
+cap_limit   = 99
+
+class WorldVXL(VXLData):
+    def __init__(self, filename):
+        self.filename = filename
+
+        if isfile(filename):
+            with open(filename, 'rb') as fin:
+                VXLData.__init__(self, fin)
+        else:
+            VXLData.__init__(self)
+
+            self.mapgen()
+            self.dump()
+
+        self.looping_call = LoopingCall(self.dump)
+        self.looping_call.start(60.0, now = False)
+
+    def dump(self):
+        # TODO: do we need to run this as `deferToThread`?
+        with open(self.filename, 'wb') as fout:
+            fout.write(self.generate())
+
+    def mapgen(self):
+        grass = make_color(32, 146, 30)
+
+        for x, y in product(range(512), range(512)):
+            self.set_column_fast(x, y, 61, 63, 61, grass)
+
+extensions = CTF(
+    arena_blue_spawn      = (122, 256, 0),
+    arena_green_spawn     = (390, 256, 0),
+    arena_blue_base       = (128, 256, 0),
+    arena_green_base      = (384, 256, 0),
+    arena_give_autorefill = True,
+    arena_respawn_time    = 3,
+    water_damage          = 100
+)
+
+def on_map_unloaded(protocol, rot_info):
+    vxl = protocol.map
+
+    if vxl.looping_call.running:
+        vxl.looping_call.stop()
+
+    vxl.dump()
+
+def on_seed_generation(rot_info):
+    if seed := rot_info.seed:
+        return seed
+    else:
+        # To avoid wasting space with random seeds in the “saves/” directory.
+        return 1
+
+def gen_script(basename, seed):
+    filename = "saves/{}.vxl".format(seed)
+    makedirs(dirname(filename), exist_ok = True)
+
+    return WorldVXL(filename)
