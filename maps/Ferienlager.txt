@@ -14,7 +14,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-This is a dedicated building map. All changes are automatically saved in the “saves/<seed>.vxl” file,
+This is a dedicated building map. All changes are permanent and automatically saved in the “saves/<seed>.vxl” file,
 which you can load later, so that you may switch to another map, player a match on it and return to this sandbox.
 To load map with the seed N, use `/loadmap Ferienlager#N` command. This way you can manage multiple saves.
 
