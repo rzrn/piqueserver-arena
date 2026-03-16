@@ -34,9 +34,9 @@ from arenalib.maptools import CTF
 
 name        = "Ferienlager"
 team1_name  = "Children"
-team1_color = (255, 0, 0)
+team1_color = (255, 96, 96)
 team2_name  = "Adults"
-team2_color = (0, 0, 255)
+team2_color = (96, 96, 255)
 cap_limit   = 99
 
 class WorldVXL(VXLData):
@@ -72,8 +72,7 @@ extensions = CTF(
     arena_blue_base       = (128, 256, 0),
     arena_green_base      = (384, 256, 0),
     arena_give_autorefill = True,
-    arena_respawn_time    = 3,
-    water_damage          = 100
+    arena_respawn_time    = 3
 )
 
 def on_map_unloaded(protocol, rot_info):
