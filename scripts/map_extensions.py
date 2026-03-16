@@ -31,6 +31,25 @@ def apply_boundary_damage(player, o):
 
 def apply_script(protocol, connection, config):
     class MapExtensionProtocol(protocol):
+        async def set_map_name(self, rot_info):
+            if map_info := self.map_info:
+                o = map_info.info
+
+                # This is called *before* the next map is loaded
+                if map_on_map_unloaded := getattr(o, 'on_map_unloaded', None):
+                    map_on_map_unloaded(self, rot_info)
+
+            await protocol.set_map_name(self, rot_info)
+
+        async def shutdown(self):
+            await protocol.shutdown(self)
+
+            if map_info := self.map_info:
+                o = map_info.info
+
+                if map_on_map_unloaded := getattr(o, 'on_map_unloaded', None):
+                    map_on_map_unloaded(self, None)
+
         def on_entity_updated(self, entity):
             protocol.on_entity_updated(self, entity)
 
