@@ -64,6 +64,9 @@ arena_time_limit = arena_section.option("time_limit", 120.0).get()
 # Delay before first round in game (seconds)
 arena_map_change_delay = arena_section.option("map_change_delay", 15.0).get()
 
+# Value to which it resets when the next map is loaded (for reference, vanilla value is 32.0)
+arena_grenade_blast_radius = arena_section.option("grenade_blast_radius", 128.0).get()
+
 def get_team_alive_count(team):
     return sum(player.is_alive() for player in team.get_players())
 
@@ -837,7 +840,7 @@ def apply_script(protocol, connection, config):
             self.team_1.last_killer = None
             self.team_2.last_killer = None
 
-            self.grenade_blast_radius = 128.0
+            self.grenade_blast_radius = arena_grenade_blast_radius
 
             extensions = self.map_info.extensions
 
