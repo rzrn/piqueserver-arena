@@ -1,6 +1,6 @@
 # Copyright © 2011–2012 mat^2
 # Copyright © 2012 Ben Aksoy
-# Copyright © 2024–2025 rzrn
+# Copyright © 2024–2026 rzrn
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -23,6 +23,8 @@ from pyspades.weapon import BaseWeapon
 from pyspades.constants import *
 
 class Weapon(BaseWeapon):
+    discard_reloading = False
+
     def get_damage(self, value, v1, v2):
         d = distance_3d_vector(v1, v2)
 
@@ -30,6 +32,30 @@ class Weapon(BaseWeapon):
         t = 1 - max(0, min(1, t))
 
         return ceil(self.damage[value] * t)
+
+    def on_reload(self):
+        self.reloading = False
+
+        if self.slow_reload:
+            self.current_ammo += 1
+            self.current_stock -= 1
+
+            self.reload_callback()
+            self.reload()
+        elif self.discard_reloading:
+            ammo_taken = min(self.ammo, self.current_stock)
+
+            self.current_ammo = ammo_taken
+            self.current_stock -= ammo_taken
+
+            self.reload_callback()
+        else:
+            ammo_taken = min(self.ammo - self.current_ammo, self.current_stock)
+
+            self.current_ammo += ammo_taken
+            self.current_stock -= ammo_taken
+
+            self.reload_callback()
 
 class Rifle(Weapon):
     id          = RIFLE_WEAPON
@@ -85,30 +111,39 @@ class Shotgun(Weapon):
         LEGS:  20
     }
 
-weapons = {
-    RIFLE_WEAPON:   Rifle,
-    SMG_WEAPON:     SMG,
-    SHOTGUN_WEAPON: Shotgun,
-}
-
 def apply_script(protocol, connection, config):
     class FalloffConnection(connection):
+        def get_weapon(self, weapon):
+            if weapon == RIFLE_WEAPON:
+                return Rifle
+
+            if weapon == SMG_WEAPON:
+                return SMG
+
+            if weapon == SHOTGUN_WEAPON:
+                return Shotgun
+
         def set_weapon(self, weapon, local = False, no_kill = False):
-            self.weapon = weapon
+            if weapon_class := self.get_weapon(weapon):
+                self.weapon = weapon
 
-            if self.weapon_object is not None:
-                self.weapon_object.reset()
+                if self.weapon_object is not None:
+                    self.weapon_object.reset()
 
-            self.weapon_object = weapons[weapon](self._on_reload)
+                self.weapon_object = weapon_class(self._on_reload)
 
-            if not local and self.world_object is not None:
-                change_weapon = loaders.ChangeWeapon()
-                self.protocol.broadcast_contained(change_weapon, save = True)
+                ds = self.protocol.map_info.extensions
+                self.weapon_object.discard_reloading = ds.get("arena_discard_reloading", False)
 
-                if not no_kill: self.kill(kill_type = CLASS_CHANGE_KILL)
+                if local is False and self.world_object is not None:
+                    change_weapon = loaders.ChangeWeapon()
+                    self.protocol.broadcast_contained(change_weapon, save = True)
+
+                    if not no_kill: self.kill(kill_type = CLASS_CHANGE_KILL)
 
         def on_spawn(self, pos):
             self._on_reload()
+
             return connection.on_spawn(self, pos)
 
     return protocol, FalloffConnection
