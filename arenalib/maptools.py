@@ -123,6 +123,26 @@ def CTF(**kw):
     ds.update(kw)
     return ds
 
+def CS2(**kw):
+    ds = dict(
+         arena                   = True,
+         arena_discard_reloading = True,
+         arena_give_ammo         = False,
+         arena_refill_interval   = 1.0,
+         arena_starting_balance  = 800,
+         arena_defuse_kit_price  = 400,
+         arena_kevlar_price      = 650,
+         arena_helmet_price      = 350,
+         arena_kill_reward       = 300,
+         arena_teamkill_penalty  = 3500,
+         arena_win_reward        = 1500,
+         arena_lose_reward       = 400,
+         arena_capture_reward    = 250
+    )
+
+    ds.update(kw)
+    return ds
+
 def respawn_on_flag_sunken(protocol, entity):
     if isinstance(entity, Flag):
         if entity.player is None and 63 <= entity.z:
