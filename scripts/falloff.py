@@ -69,8 +69,8 @@ class Rifle(Weapon):
     far         = 1024
 
     damage = {
-        TORSO: 100,
-        HEAD:  100,
+        TORSO: 175,
+        HEAD:  200,
         ARMS:  80,
         LEGS:  80
     }
