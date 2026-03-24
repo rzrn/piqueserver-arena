@@ -31,7 +31,7 @@ from twisted.internet import reactor
 
 from pyspades.contained import (
     HitPacket, BlockAction, KillAction, IntelPickup,
-    IntelDrop, GrenadePacket, WeaponInput
+    IntelDrop, GrenadePacket, WeaponInput, WeaponReload
 )
 
 from pyspades.packet import register_packet_handler
@@ -241,24 +241,35 @@ def apply_script(protocol, connection, config):
             else:
                 self.spawn()
 
-        def on_spawn(self, pos):
-            retval = connection.on_spawn(self, pos)
+        def on_spawn(self, loc):
+            if self.get_respawn_time() < 0:
+                self.kill()
+
+            connection.on_spawn(self, loc)
 
             self.bomb_defusal_timer = None
             self.has_defuse_kit     = False
 
             ds = self.protocol.map_info.extensions
+
             arena_give_autorefill = ds.get('arena_give_autorefill', False)
 
-            if arena_give_autorefill:
+            if arena_give_autorefill is not False:
                 self.has_autorefill_enabled = False
 
-            if self.get_respawn_time() < 0:
-                self.kill()
-            else:
-                return retval
+            arena_give_ammo = ds.get('arena_give_ammo', True)
 
-        def on_spawn_location(self, pos):
+            if arena_give_ammo is False:
+                self.weapon_object.current_stock = 0
+
+                contained              = WeaponReload()
+                contained.player_id    = self.player_id
+                contained.clip_ammo    = self.weapon_object.current_ammo
+                contained.reserve_ammo = self.weapon_object.current_stock
+
+                self.send_contained(contained)
+
+        def on_spawn_location(self, loc):
             x, y, z = choice(self.team.arena_spawns)
             return x + 0.5, y + 0.5, self.protocol.map.get_z(x, y, z) - 3
 
@@ -662,7 +673,7 @@ def apply_script(protocol, connection, config):
 
             arena_give_autorefill = ds.get('arena_give_autorefill', False)
 
-            if arena_give_autorefill and monotonic() - self.last_autorefill_given > self.protocol.refill_interval:
+            if arena_give_autorefill is not False and monotonic() - self.last_autorefill_given > self.protocol.refill_interval:
                 self.last_autorefill_given = monotonic()
                 self.try_give_autorefill()
 
