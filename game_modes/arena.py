@@ -31,7 +31,8 @@ from twisted.internet import reactor
 
 from pyspades.contained import (
     HitPacket, BlockAction, KillAction, IntelPickup,
-    IntelDrop, GrenadePacket, WeaponInput, WeaponReload
+    IntelDrop, GrenadePacket, WeaponInput, WeaponReload,
+    Restock, SetHP
 )
 
 from pyspades.packet import register_packet_handler
@@ -75,19 +76,24 @@ def is_team_dead(team):
 
 def apply_script(protocol, connection, config):
     class ArenaConnection(connection):
+        cash_balance           = 0
         last_spadenade_usage   = 0
         last_death_time        = 0
         grenade_unpin_time     = 0
         bomb_defusal_timer     = None
         has_defuse_kit         = False
+        has_kevlar_equipped    = False
+        has_helmet_equipped    = False
         has_autorefill_enabled = False
-        last_autorefill_given  = 0
 
         def __init__(self, *w, **kw):
             connection.__init__(self, *w, **kw)
 
             self.teamkill_time_deque = deque(maxlen = 30)
             self.last_activity_time = None
+
+        def give_player_cash(self, amount):
+            self.cash_balance = max(0, min(16_000, self.cash_balance + amount))
 
         def is_alive(self):
             if wo := self.world_object:
@@ -183,10 +189,18 @@ def apply_script(protocol, connection, config):
             if retval is False: return False
 
             if killer is not None:
+                ds = self.protocol.map_info.extensions
+
                 if killer.team is not self.team:
                     killer.team.last_killer = killer
+
+                    kill_reward = ds.get('arena_kill_reward', 0)
+                    killer.give_player_cash(kill_reward)
                 elif killer is not self:
                     killer.teamkill_time_deque.appendleft(monotonic())
+
+                    teamkill_penalty = ds.get('arena_teamkill_penalty', 0)
+                    killer.give_player_cash(-teamkill_penalty)
 
             self.last_death_time = monotonic()
 
@@ -241,14 +255,41 @@ def apply_script(protocol, connection, config):
             else:
                 self.spawn()
 
+        def on_join(self):
+            connection.on_join(self)
+
+            ds = self.protocol.map_info.extensions
+            arena_starting_balance = ds.get('arena_starting_balance', 0)
+
+            self.cash_balance = arena_starting_balance
+
+            self.has_autorefill_enabled = False
+
+        def adjust_ammo(self):
+            contained              = WeaponReload()
+            contained.player_id    = self.player_id
+            contained.clip_ammo    = self.weapon_object.current_ammo
+            contained.reserve_ammo = self.weapon_object.current_stock
+
+            self.send_contained(contained)
+
+        def adjust_hp(self):
+            contained           = SetHP()
+            contained.hp        = self.hp
+            contained.not_fall  = False
+
+            self.send_contained(contained)
+
         def on_spawn(self, loc):
             if self.get_respawn_time() < 0:
                 self.kill()
 
             connection.on_spawn(self, loc)
 
-            self.bomb_defusal_timer = None
-            self.has_defuse_kit     = False
+            self.bomb_defusal_timer  = None
+            self.has_defuse_kit      = False
+            self.has_kevlar_equipped = False
+            self.has_helmet_equipped = False
 
             ds = self.protocol.map_info.extensions
 
@@ -261,13 +302,7 @@ def apply_script(protocol, connection, config):
 
             if arena_give_ammo is False:
                 self.weapon_object.current_stock = 0
-
-                contained              = WeaponReload()
-                contained.player_id    = self.player_id
-                contained.clip_ammo    = self.weapon_object.current_ammo
-                contained.reserve_ammo = self.weapon_object.current_stock
-
-                self.send_contained(contained)
+                self.adjust_ammo()
 
         def on_spawn_location(self, loc):
             x, y, z = choice(self.team.arena_spawns)
@@ -321,6 +356,19 @@ def apply_script(protocol, connection, config):
                     player.send_chat_status(
                         "{} team wins the round".format(team.name)
                     )
+
+                ds = protocol.map_info.extensions
+                arena_win_reward     = ds.get('arena_win_reward', 0)
+                arena_lose_reward    = ds.get('arena_lose_reward', 0)
+                arena_capture_reward = ds.get('arena_capture_reward', 0)
+
+                self.give_player_cash(arena_capture_reward)
+
+                for player in team.get_players():
+                    player.give_player_cash(arena_win_reward)
+
+                for player in team.other.get_players():
+                    player.give_player_cash(arena_lose_reward)
 
                 protocol.begin_arena_countdown(protocol.arena_break_time)
                 protocol.arena_spawn()
@@ -402,15 +450,10 @@ def apply_script(protocol, connection, config):
             return connection.on_orientation_update(self, x, y, z)
 
         def on_refill(self):
-            retval = connection.on_refill(self)
-
-            ds = self.protocol.map_info.extensions
-            arena_has_refill = ds.get('arena_has_refill', False)
-
-            if self.protocol.arena_running and arena_has_refill is False:
+            if self.protocol.arena_running is False:
                 return False
 
-            return retval
+            return connection.on_refill(self)
 
         def on_grenade(self, fuse):
             self.try_disable_autorefill()
@@ -631,27 +674,150 @@ def apply_script(protocol, connection, config):
             connection.on_weapon_input_recieved(self, contained)
             self.last_activity_time = monotonic()
 
+        def try_to_buy(self, item_name, price):
+            if price <= 0:
+                self.send_chat_warning(
+                    "You've been given {}.".format(item_name)
+                )
+
+                return True
+
+            if self.cash_balance < price:
+                self.send_chat_error(
+                    "You're ${} short.".format(price - self.cash_balance)
+                )
+
+                return False
+
+            self.give_player_cash(-price)
+            self.send_chat_warning(
+                "You've bought {} for ${}.".format(item_name, price)
+            )
+
+            return True
+
+        def try_give_kevlar(self):
+            ds = self.protocol.map_info.extensions
+            kevlar_price = ds.get('arena_kevlar_price', None)
+
+            if kevlar_price is None:
+                return
+
+            if self.has_kevlar_equipped:
+                return
+
+            if self.try_to_buy("a kevlar vest", kevlar_price) is True:
+                self.set_hp(self.hp + 60, kill_type = FALL_KILL)
+                self.has_kevlar_equipped = True
+
+        def try_give_assault_vest(self):
+            ds = self.protocol.map_info.extensions
+            kevlar_price = ds.get('arena_kevlar_price', None)
+            helmet_price = ds.get('arena_helmet_price', None)
+
+            if helmet_price is None or kevlar_price is None:
+                return
+
+            if self.has_helmet_equipped:
+                return
+
+            if self.has_kevlar_equipped:
+                if self.try_to_buy("a helmet", helmet_price) is True:
+                    self.set_hp(self.hp + 40, kill_type = FALL_KILL)
+                    self.has_helmet_equipped = True
+            else:
+                if self.try_to_buy("an assault vest", kevlar_price + helmet_price) is True:
+                    self.set_hp(self.hp + 100, kill_type = FALL_KILL)
+                    self.has_helmet_equipped = True
+                    self.has_kevlar_equipped = True
+
         def try_give_defuse_kit(self):
+            ds = self.protocol.map_info.extensions
+            defuse_kit_price = ds.get('arena_defuse_kit_price', 0)
+
             if self.has_defuse_kit:
                 return
-            else:
+
+            if self.try_to_buy("a defuse kit", defuse_kit_price) is True:
                 self.has_defuse_kit = True
 
-                self.send_chat_warning("You've been given a defuse kit.")
-
         def try_give_autorefill(self):
+            ds = self.protocol.map_info.extensions
+            autorefill_price = ds.get('arena_autorefill_price', 0)
+
             if self.has_autorefill_enabled:
                 return
-            else:
+
+            if self.try_to_buy("an autorefill", autorefill_price) is True:
                 self.has_autorefill_enabled = True
 
-                self.send_chat_warning("You've been given an autorefill.")
+        def try_give_refill(self):
+            ds = self.protocol.map_info.extensions
+            arena_has_refill = ds.get('arena_has_refill', False)
+
+            if self.can_be_refilled() is False:
+                return
+
+            if arena_has_refill is False:
+                refill_price = self.get_refill_price()
+            else:
+                refill_price = 0
+
+            if self.try_to_buy("a refill", refill_price):
+                self.refill()
 
         def try_disable_autorefill(self):
             if self.has_autorefill_enabled:
                 self.has_autorefill_enabled = False
 
                 self.send_chat("Automatic refill has been disabled for you")
+
+        def refill(self, local = False):
+            self.hp       = max(self.hp or 0, 100)
+            self.grenades = 3
+            self.blocks   = 50
+
+            self.weapon_object.restock()
+
+            if local is False:
+                self.send_contained(Restock())
+                if self.hp > 100: self.adjust_hp()
+
+        def can_be_refilled(self):
+            if self.hp < 100:
+                return True
+
+            if self.weapon_object.current_stock < self.weapon_object.stock:
+                return True
+
+            if self.blocks < 50:
+                return True
+
+            if self.grenades < 3:
+                return True
+
+            return False
+
+        def get_refill_price(self):
+            price_per_hp = 3
+
+            price_per_block = 10
+
+            if self.weapon == RIFLE_WEAPON:
+                price_per_round = 25
+            if self.weapon == SMG_WEAPON:
+                price_per_round = 5
+            if self.weapon == SHOTGUN_WEAPON:
+                price_per_round = 2
+
+            price_per_grenade = 300
+
+            hp_price      = price_per_hp * max(0, 100 - self.hp)
+            ammo_price    = price_per_round * (self.weapon_object.stock - self.weapon_object.current_stock)
+            block_price   = price_per_block * (50 - self.blocks)
+            grenade_price = price_per_grenade * (3 - self.grenades)
+
+            return hp_price + ammo_price + block_price + grenade_price
 
         def check_refill(self):
             if self.protocol.arena_running is False:
@@ -661,23 +827,32 @@ def apply_script(protocol, connection, config):
                 return
 
             ds = self.protocol.map_info.extensions
+            refill_interval = ds.get('arena_refill_interval', self.protocol.refill_interval)
 
-            green_has_bomb = 'arena_green_bombsites' in ds
-            blue_has_bomb  = 'arena_blue_bombsites'  in ds
+            if self.last_refill is None or monotonic() - self.last_refill > refill_interval:
+                self.last_refill = monotonic()
 
-            if self.team is self.protocol.blue_team and green_has_bomb:
-                self.try_give_defuse_kit()
+                if self.on_refill() is not False:
+                    if self.tool == SPADE_TOOL:
+                        blue_has_bomb         = 'arena_blue_bombsites'  in ds
+                        green_has_bomb        = 'arena_green_bombsites' in ds
+                        arena_give_autorefill = ds.get('arena_give_autorefill', False)
 
-            if self.team is self.protocol.green_team and blue_has_bomb:
-                self.try_give_defuse_kit()
+                        if self.team is self.protocol.blue_team and green_has_bomb:
+                            self.try_give_defuse_kit()
+                        elif self.team is self.protocol.green_team and blue_has_bomb:
+                            self.try_give_defuse_kit()
+                        elif arena_give_autorefill:
+                            self.try_give_autorefill()
 
-            arena_give_autorefill = ds.get('arena_give_autorefill', False)
+                    if self.tool == BLOCK_TOOL:
+                        self.try_give_kevlar()
 
-            if arena_give_autorefill is not False and monotonic() - self.last_autorefill_given > self.protocol.refill_interval:
-                self.last_autorefill_given = monotonic()
-                self.try_give_autorefill()
+                    if self.tool == WEAPON_TOOL:
+                        self.try_give_refill()
 
-            connection.check_refill(self)
+                    if self.tool == GRENADE_TOOL:
+                        self.try_give_assault_vest()
 
     class ArenaProtocol(protocol):
         game_mode = CTF_MODE
@@ -915,14 +1090,21 @@ def apply_script(protocol, connection, config):
                     player.spawn((x + 0.5, y + 0.5, z))
                 else:
                     player.set_location((x, y, z))
-                    player.refill()
 
         def refill_all(self):
             for player in self.players.values():
                 if player.team.spectator:
                     continue
 
+                stock = player.weapon_object.current_stock
                 player.refill()
+
+                ds = self.map_info.extensions
+                arena_give_ammo = ds.get('arena_give_ammo', True)
+
+                if arena_give_ammo is False:
+                    player.weapon_object.current_stock = stock
+                    player.adjust_ammo()
 
         def game_start_warning(self, seconds):
             for team in self.green_team, self.blue_team:

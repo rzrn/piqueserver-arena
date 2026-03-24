@@ -31,6 +31,16 @@ arena_section       = config.section("arena")
 afk_time_threshold  = arena_section.option("afk_time_threshold", 15.0).get()
 flag_throw_distance = arena_section.option("flag_throw_distance", 5.0).get()
 
+@command('balance', 'money', 'cash')
+@player_only
+def c_balance(player):
+    """
+    Report your current cash balance
+    /balance or /money
+    """
+
+    player.send_chat_status("${}".format(player.cash_balance))
+
 @command('afktimer', 'afk')
 def c_afktimer(connection, nickname):
     """
