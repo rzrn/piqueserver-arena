@@ -13,7 +13,11 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from datetime import datetime
 from time import monotonic
+
+from os.path import isfile, dirname, getmtime
+from os import makedirs
 
 from pyspades.contained import GrenadePacket, IntelDrop
 from pyspades.common import prettify_timespan
@@ -30,6 +34,38 @@ class ArenaException(Exception):
 arena_section       = config.section("arena")
 afk_time_threshold  = arena_section.option("afk_time_threshold", 15.0).get()
 flag_throw_distance = arena_section.option("flag_throw_distance", 5.0).get()
+
+@command('lsmap', 'statmap')
+def c_lsmap(connection, mapname):
+    """
+    Give an information about `saves/X.vxl` map
+    /lsmap X or /statmap
+    """
+
+    filename = "saves/{}.vxl".format(mapname)
+
+    if isfile(filename):
+        mtime = getmtime(filename)
+
+        return "{}: {} (MODIFY)".format(
+            filename, datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M:%S")
+        )
+    else:
+        return "{}: does not exist".format(filename)
+
+@command('savemap', 'save', admin_only = True)
+def c_savemap(connection, mapname):
+    """
+    Save the current map to `saves/X.vxl`
+    /savemap X or /save
+    """
+
+    filename = "saves/{}.vxl".format(mapname)
+    makedirs(dirname(filename), exist_ok = True)
+
+    with open(filename, 'wb') as fout:
+        fout.write(connection.protocol.map.generate())
+        return "Map saved to `{}`".format(filename)
 
 @command('balance', 'money', 'cash')
 @player_only
