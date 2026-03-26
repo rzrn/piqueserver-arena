@@ -14,15 +14,47 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from colorsys import hsv_to_rgb
+from itertools import product
+from os.path import isfile
 from math import inf
+
+from twisted.internet.task import LoopingCall
 
 from pyspades.contained import BlockAction, BlockLine, GrenadePacket
 from pyspades.constants import BUILD_BLOCK, DESTROY_BLOCK
-from pyspades.common import Vertex3
+from pyspades.common import Vertex3, make_color
 from pyspades.entities import Flag
+from pyspades.vxl import VXLData
 from pyspades import world
 
 from arenalib.raycast import cube_line
+
+class WorldVXL(VXLData):
+    def __init__(self, filename):
+        self.filename = filename
+
+        if isfile(filename):
+            with open(filename, 'rb') as fin:
+                VXLData.__init__(self, fin)
+        else:
+            VXLData.__init__(self)
+
+            self.mapgen()
+            self.dump()
+
+        self.looping_call = LoopingCall(self.dump)
+        self.looping_call.start(60.0, now = False)
+
+    def dump(self):
+        # TODO: do we need to run this as `deferToThread`?
+        with open(self.filename, 'wb') as fout:
+            fout.write(self.generate())
+
+    def mapgen(self):
+        grass = make_color(32, 146, 30)
+
+        for x, y in product(range(512), range(512)):
+            self.set_column_fast(x, y, 61, 63, 61, grass)
 
 def denorm8(x):
     return int(x * 255)
@@ -150,3 +182,11 @@ def respawn_on_flag_sunken(protocol, entity):
 
 def refill_on_flag_taken(player):
     player.refill()
+
+def dump_on_map_unloaded(protocol, rot_info):
+    vxl = protocol.map
+
+    if vxl.looping_call.running:
+        vxl.looping_call.stop()
+
+    vxl.dump()
