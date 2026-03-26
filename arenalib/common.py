@@ -107,6 +107,8 @@ def c_toggle_autorefill(connection, argval = None):
     player.has_autorefill_enabled = not player.has_autorefill_enabled
 
     if player.has_autorefill_enabled:
+        player.refill()
+
         protocol.broadcast_chat(
             "{} enabled automatic refill for {}".format(connection.name, player.name)
         )

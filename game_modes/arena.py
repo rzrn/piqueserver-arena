@@ -750,6 +750,7 @@ def apply_script(protocol, connection, config):
 
             if self.try_to_buy("an autorefill", autorefill_price) is True:
                 self.has_autorefill_enabled = True
+                self.refill()
 
         def try_give_refill(self):
             ds = self.protocol.map_info.extensions
