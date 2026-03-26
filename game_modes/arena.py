@@ -704,7 +704,7 @@ def apply_script(protocol, connection, config):
             kevlar_price = ds.get('arena_kevlar_price', None)
 
             if kevlar_price is None:
-                self.send_chat_error("No item on key 2 is available on this map")
+                self.send_chat_error("No item on key 2 is available.")
 
                 return
 
@@ -721,7 +721,7 @@ def apply_script(protocol, connection, config):
             helmet_price = ds.get('arena_helmet_price', None)
 
             if helmet_price is None or kevlar_price is None:
-                self.send_chat_error("No item on key 4 is available on this map")
+                self.send_chat_error("No item on key 4 is available.")
 
                 return
 
@@ -877,7 +877,7 @@ def apply_script(protocol, connection, config):
                 elif arena_give_autorefill:
                     self.try_give_autorefill()
                 else:
-                    self.send_chat_error("No item on key 1 is available on this map")
+                    self.send_chat_error("No item on key 1 is available.")
 
             if self.tool == BLOCK_TOOL:
                 self.last_buy_on_key_2 = monotonic()
