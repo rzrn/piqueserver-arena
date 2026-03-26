@@ -705,6 +705,8 @@ def apply_script(protocol, connection, config):
             kevlar_price = ds.get('arena_kevlar_price', None)
 
             if kevlar_price is None:
+                self.send_chat_error("No item on key 2 is available on this map")
+
                 return
 
             if self.has_kevlar_equipped:
@@ -720,6 +722,8 @@ def apply_script(protocol, connection, config):
             helmet_price = ds.get('arena_helmet_price', None)
 
             if helmet_price is None or kevlar_price is None:
+                self.send_chat_error("No item on key 4 is available on this map")
+
                 return
 
             if self.has_helmet_equipped:
@@ -761,6 +765,8 @@ def apply_script(protocol, connection, config):
             arena_has_refill = ds.get('arena_has_refill', False)
 
             if self.can_be_refilled() is False:
+                self.send_chat_warning("No refill needed.")
+
                 return
 
             if arena_has_refill is False:
@@ -846,7 +852,13 @@ def apply_script(protocol, connection, config):
             if self.tool == GRENADE_TOOL:
                 last_buy = self.last_buy_on_key_4
 
-            if monotonic() - last_buy <= refill_interval:
+            dt = monotonic() - last_buy
+
+            if dt <= refill_interval:
+                self.send_chat_error(
+                    "{:.0f} s".format(refill_interval - dt)
+                )
+
                 return
 
             if self.on_refill() is False:
@@ -865,6 +877,8 @@ def apply_script(protocol, connection, config):
                     self.try_give_defuse_kit()
                 elif arena_give_autorefill:
                     self.try_give_autorefill()
+                else:
+                    self.send_chat_error("No item on key 1 is available on this map")
 
             if self.tool == BLOCK_TOOL:
                 self.last_buy_on_key_2 = monotonic()
