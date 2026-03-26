@@ -446,7 +446,6 @@ def apply_script(protocol, connection, config):
                 self.check_refill()
 
             connection.on_position_update(self)
-            self.last_activity_time = monotonic()
 
         def on_orientation_update(self, x, y, z):
             self.last_activity_time = monotonic()
