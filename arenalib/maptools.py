@@ -128,7 +128,7 @@ def CS2(**kw):
          arena                   = True,
          arena_discard_reloading = True,
          arena_give_ammo         = False,
-         arena_refill_interval   = 1.0,
+         arena_refill_interval   = 5.0,
          arena_starting_balance  = 800,
          arena_defuse_kit_price  = 400,
          arena_kevlar_price      = 650,

@@ -85,6 +85,10 @@ def apply_script(protocol, connection, config):
         has_kevlar_equipped    = False
         has_helmet_equipped    = False
         has_autorefill_enabled = False
+        last_buy_on_key_1      = 0
+        last_buy_on_key_2      = 0
+        last_buy_on_key_3      = 0
+        last_buy_on_key_4      = 0
 
         def __init__(self, *w, **kw):
             connection.__init__(self, *w, **kw)
@@ -830,30 +834,49 @@ def apply_script(protocol, connection, config):
             ds = self.protocol.map_info.extensions
             refill_interval = ds.get('arena_refill_interval', self.protocol.refill_interval)
 
-            if self.last_refill is None or monotonic() - self.last_refill > refill_interval:
-                self.last_refill = monotonic()
+            if self.tool == SPADE_TOOL:
+                last_buy = self.last_buy_on_key_1
 
-                if self.on_refill() is not False:
-                    if self.tool == SPADE_TOOL:
-                        blue_has_bomb         = 'arena_blue_bombsites'  in ds
-                        green_has_bomb        = 'arena_green_bombsites' in ds
-                        arena_give_autorefill = ds.get('arena_give_autorefill', False)
+            if self.tool == BLOCK_TOOL:
+                last_buy = self.last_buy_on_key_2
 
-                        if self.team is self.protocol.blue_team and green_has_bomb:
-                            self.try_give_defuse_kit()
-                        elif self.team is self.protocol.green_team and blue_has_bomb:
-                            self.try_give_defuse_kit()
-                        elif arena_give_autorefill:
-                            self.try_give_autorefill()
+            if self.tool == WEAPON_TOOL:
+                last_buy = self.last_buy_on_key_3
 
-                    if self.tool == BLOCK_TOOL:
-                        self.try_give_kevlar()
+            if self.tool == GRENADE_TOOL:
+                last_buy = self.last_buy_on_key_4
 
-                    if self.tool == WEAPON_TOOL:
-                        self.try_give_refill()
+            if monotonic() - last_buy <= refill_interval:
+                return
 
-                    if self.tool == GRENADE_TOOL:
-                        self.try_give_assault_vest()
+            if self.on_refill() is False:
+                return
+
+            if self.tool == SPADE_TOOL:
+                self.last_buy_on_key_1 = monotonic()
+
+                blue_has_bomb         = 'arena_blue_bombsites'  in ds
+                green_has_bomb        = 'arena_green_bombsites' in ds
+                arena_give_autorefill = ds.get('arena_give_autorefill', False)
+
+                if self.team is self.protocol.blue_team and green_has_bomb:
+                    self.try_give_defuse_kit()
+                elif self.team is self.protocol.green_team and blue_has_bomb:
+                    self.try_give_defuse_kit()
+                elif arena_give_autorefill:
+                    self.try_give_autorefill()
+
+            if self.tool == BLOCK_TOOL:
+                self.last_buy_on_key_2 = monotonic()
+                self.try_give_kevlar()
+
+            if self.tool == WEAPON_TOOL:
+                self.last_buy_on_key_3 = monotonic()
+                self.try_give_refill()
+
+            if self.tool == GRENADE_TOOL:
+                self.last_buy_on_key_4 = monotonic()
+                self.try_give_assault_vest()
 
     class ArenaProtocol(protocol):
         game_mode = CTF_MODE
