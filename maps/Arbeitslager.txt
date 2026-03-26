@@ -1,0 +1,51 @@
+# Copyright © 2026 rzrn
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+from os.path import dirname
+from os import makedirs
+
+from arenalib.maptools import WorldVXL, CTF, dump_on_map_unloaded
+
+name        = "Arbeitslager"
+team1_name  = "Officers"
+team1_color = (255, 64, 0)
+team2_name  = "Rebels"
+team2_color = (64, 255, 0)
+cap_limit   = 7
+
+extensions = CTF(
+    arena_blue_spawn      = (122, 256, 0),
+    arena_green_spawn     = (390, 256, 0),
+    arena_blue_base       = (128, 256, 0),
+    arena_blue_flag       = (104, 256, 0),
+    arena_green_base      = (384, 256, 0),
+    arena_green_flag      = (408, 256, 0),
+    arena_give_autorefill = True,
+    arena_respawn_time    = 10
+)
+
+on_map_unloaded = dump_on_map_unloaded
+
+def on_seed_generation(rot_info):
+    if seed := rot_info.seed:
+        return seed
+    else:
+        return 1
+
+def gen_script(basename, seed):
+    filename = "saves/{}.vxl".format(seed)
+    makedirs(dirname(filename), exist_ok = True)
+
+    return WorldVXL(filename)
