@@ -31,7 +31,7 @@ team1_name  = "Children"
 team1_color = (255, 96, 96)
 team2_name  = "Adults"
 team2_color = (96, 96, 255)
-cap_limit   = 99
+cap_limit   = 0
 
 extensions = CTF(
     arena_blue_spawn      = (122, 256, 0),
