@@ -13,6 +13,8 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from itertools import product
+
 from os.path import dirname
 from os import makedirs
 
@@ -26,8 +28,8 @@ team2_color = (64, 255, 0)
 cap_limit   = 7
 
 extensions = CTF(
-    arena_blue_spawn      = (122, 256, 0),
-    arena_green_spawn     = (390, 256, 0),
+    arena_blue_spawns     = [(122 + Δx, 256 + Δy, 0) for Δx, Δy in product(range(-32, 32), repeat = 2)],
+    arena_green_spawns    = [(390 + Δx, 256 + Δy, 0) for Δx, Δy in product(range(-32, 32), repeat = 2)],
     arena_blue_base       = (128, 256, 0),
     arena_blue_flag       = (104, 256, 0),
     arena_green_base      = (384, 256, 0),

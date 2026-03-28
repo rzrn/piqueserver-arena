@@ -21,6 +21,8 @@ To load map with the seed N, use `/loadmap Ferienlager#N` command. This way you 
 In particular, it means that you can save an arbitrary map as “saves/X.vxl” and load it as `/loadmap Ferienlager#X`.
 """
 
+from itertools import product
+
 from os.path import dirname
 from os import makedirs
 
@@ -34,8 +36,8 @@ team2_color = (96, 96, 255)
 cap_limit   = 0
 
 extensions = CTF(
-    arena_blue_spawn      = (122, 256, 0),
-    arena_green_spawn     = (390, 256, 0),
+    arena_blue_spawns     = [(122 + Δx, 256 + Δy, 0) for Δx, Δy in product(range(-32, 32), repeat = 2)],
+    arena_green_spawns    = [(390 + Δx, 256 + Δy, 0) for Δx, Δy in product(range(-32, 32), repeat = 2)],
     arena_blue_base       = (128, 256, 0),
     arena_green_base      = (384, 256, 0),
     arena_give_autorefill = True,
