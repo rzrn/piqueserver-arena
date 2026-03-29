@@ -15,7 +15,7 @@
 
 from itertools import product
 
-from os.path import dirname
+from os.path import isfile, dirname
 from os import makedirs
 
 from arenalib.maptools import WorldVXL, CTF, dump_on_map_unloaded
@@ -49,5 +49,17 @@ def on_seed_generation(rot_info):
 def gen_script(basename, seed):
     filename = "saves/{}.vxl".format(seed)
     makedirs(dirname(filename), exist_ok = True)
+
+    metafile = "saves/{}.txt".format(seed)
+
+    try:
+        fin = open(metafile, 'r')
+    except FileNotFoundError:
+        pass
+    else:
+        try:
+            exec(compile(fin.read(), metafile, 'exec'), globals())
+        finally:
+            fin.close()
 
     return WorldVXL(filename)
