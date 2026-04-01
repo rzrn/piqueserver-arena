@@ -15,8 +15,11 @@
 
 from colorsys import hsv_to_rgb
 from itertools import product
-from os.path import isfile
 from math import inf
+import random
+
+from os.path import splitext, isfile, isdir
+from os import scandir
 
 from twisted.internet.task import LoopingCall
 
@@ -190,3 +193,32 @@ def dump_on_map_unloaded(protocol, rot_info):
         vxl.looping_call.stop()
 
     vxl.dump()
+
+def scandir_seed(dirname):
+    if isdir(dirname) is False:
+        return
+
+    for entry in scandir(dirname):
+        if entry.is_file() is False:
+            continue
+
+        stem, suffix = splitext(entry.name)
+
+        if suffix != ".vxl":
+            continue
+
+        if stem.isdigit():
+            yield int(stem)
+
+def scandir_on_seed_generation(rot_info):
+    if rot_info.seed is not None:
+        return rot_info.seed
+
+    # To avoid wasting space with random seeds in the “saves/” directory.
+    seeds = list(seed for seed in scandir_seed("saves/") if seed < 2_147_483_647)
+
+    if bool(seeds):
+        random.seed() # FIXME: piqueserver changes this
+        return random.choice(seeds)
+    else:
+        return 1
