@@ -18,7 +18,7 @@ from itertools import product
 from os.path import isfile, dirname
 from os import makedirs
 
-from arenalib.maptools import WorldVXL, CTF, dump_on_map_unloaded
+from arenalib.maptools import WorldVXL, CTF, dump_on_map_unloaded, scandir_on_seed_generation
 
 name        = "Arbeitslager"
 team1_name  = "Officers"
@@ -38,13 +38,8 @@ extensions = CTF(
     arena_respawn_time    = 10
 )
 
-on_map_unloaded = dump_on_map_unloaded
-
-def on_seed_generation(rot_info):
-    if seed := rot_info.seed:
-        return seed
-    else:
-        return 1
+on_map_unloaded    = dump_on_map_unloaded
+on_seed_generation = scandir_on_seed_generation
 
 def gen_script(basename, seed):
     filename = "saves/{}.vxl".format(seed)
