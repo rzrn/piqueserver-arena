@@ -36,12 +36,12 @@ team2_color = (96, 96, 255)
 cap_limit   = 0
 
 extensions = CTF(
-    arena_blue_spawns     = [(122 + Δx, 256 + Δy, 0) for Δx, Δy in product(range(-32, 32), repeat = 2)],
-    arena_green_spawns    = [(390 + Δx, 256 + Δy, 0) for Δx, Δy in product(range(-32, 32), repeat = 2)],
-    arena_blue_base       = (128, 256, 0),
-    arena_green_base      = (384, 256, 0),
-    arena_give_autorefill = True,
-    arena_respawn_time    = 3
+    arena_blue_spawns      = [(122 + Δx, 256 + Δy, 0) for Δx, Δy in product(range(-32, 32), repeat = 2)],
+    arena_green_spawns     = [(390 + Δx, 256 + Δy, 0) for Δx, Δy in product(range(-32, 32), repeat = 2)],
+    arena_blue_base        = (128, 256, 0),
+    arena_green_base       = (384, 256, 0),
+    arena_give_builder_kit = True,
+    arena_respawn_time     = 3
 )
 
 on_map_unloaded    = dump_on_map_unloaded
