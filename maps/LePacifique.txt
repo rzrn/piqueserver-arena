@@ -24,9 +24,9 @@ from arenalib.maptools import CTF, HSV3fAsRGB3i, respawn_on_flag_sunken
 name        = "LePacifique"
 version     = "1.0"
 team1_name  = "Bleus"
-team1_color = (0, 0, 255)
+team1_color = (0, 96, 255)
 team2_name  = "Verts"
-team2_color = (0, 255, 0)
+team2_color = (0, 255, 96)
 
 xmin, xmax, ymin, ymax = -48, 48, -128, 128
 
