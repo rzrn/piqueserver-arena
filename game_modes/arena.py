@@ -76,19 +76,19 @@ def is_team_dead(team):
 
 def apply_script(protocol, connection, config):
     class ArenaConnection(connection):
-        cash_balance           = 0
-        last_spadenade_usage   = 0
-        last_death_time        = 0
-        grenade_unpin_time     = 0
-        bomb_defusal_timer     = None
-        has_defuse_kit         = False
-        has_kevlar_equipped    = False
-        has_helmet_equipped    = False
-        has_autorefill_enabled = False
-        last_buy_on_key_1      = 0
-        last_buy_on_key_2      = 0
-        last_buy_on_key_3      = 0
-        last_buy_on_key_4      = 0
+        cash_balance         = 0
+        last_spadenade_usage = 0
+        last_death_time      = 0
+        grenade_unpin_time   = 0
+        bomb_defusal_timer   = None
+        has_builder_kit      = False
+        has_defuse_kit       = False
+        has_kevlar_equipped  = False
+        has_helmet_equipped  = False
+        last_buy_on_key_1    = 0
+        last_buy_on_key_2    = 0
+        last_buy_on_key_3    = 0
+        last_buy_on_key_4    = 0
 
         def __init__(self, *w, **kw):
             connection.__init__(self, *w, **kw)
@@ -267,7 +267,7 @@ def apply_script(protocol, connection, config):
 
             self.cash_balance = arena_starting_balance
 
-            self.has_autorefill_enabled = False
+            self.has_builder_kit = False
 
         def adjust_ammo(self):
             contained              = WeaponReload()
@@ -297,10 +297,10 @@ def apply_script(protocol, connection, config):
 
             ds = self.protocol.map_info.extensions
 
-            arena_give_autorefill = ds.get('arena_give_autorefill', False)
+            arena_give_builder_kit = ds.get('arena_give_builder_kit', False)
 
-            if arena_give_autorefill is not False:
-                self.has_autorefill_enabled = False
+            if arena_give_builder_kit is not False:
+                self.has_builder_kit = False
 
             arena_give_ammo = ds.get('arena_give_ammo', True)
 
@@ -423,14 +423,14 @@ def apply_script(protocol, connection, config):
             connection.on_block_build(self, x, y, z)
             self.last_activity_time = monotonic()
 
-            if self.has_autorefill_enabled:
+            if self.has_builder_kit:
                 self.refill()
 
         def on_line_build(self, points):
             connection.on_line_build(self, points)
             self.last_activity_time = monotonic()
 
-            if self.has_autorefill_enabled:
+            if self.has_builder_kit:
                 self.refill()
 
         def on_block_removed(self, x, y, z):
@@ -438,7 +438,7 @@ def apply_script(protocol, connection, config):
             self.last_activity_time = monotonic()
 
             if self.tool == WEAPON_TOOL:
-                self.try_disable_autorefill()
+                self.try_revoke_builder_kit()
 
         def on_position_update(self):
             # “ServerConnection.on_position_update_recieved” does this only for “self.team.base”
@@ -459,7 +459,7 @@ def apply_script(protocol, connection, config):
             return connection.on_refill(self)
 
         def on_grenade(self, fuse):
-            self.try_disable_autorefill()
+            self.try_revoke_builder_kit()
 
             self.grenade_unpin_time = 0
 
@@ -662,7 +662,7 @@ def apply_script(protocol, connection, config):
                 elif retval is not None:
                     hit_amount = retval
 
-                self.try_disable_autorefill()
+                self.try_revoke_builder_kit()
                 player.hit(hit_amount, self, kill_type)
 
         @register_packet_handler(WeaponInput)
@@ -748,15 +748,15 @@ def apply_script(protocol, connection, config):
             if self.try_to_buy("a defuse kit", defuse_kit_price) is True:
                 self.has_defuse_kit = True
 
-        def try_give_autorefill(self):
+        def try_give_builder_kit(self):
             ds = self.protocol.map_info.extensions
-            autorefill_price = ds.get('arena_autorefill_price', 0)
+            builder_kit_price = ds.get('arena_builder_kit_price', 0)
 
-            if self.has_autorefill_enabled:
+            if self.has_builder_kit:
                 return
 
-            if self.try_to_buy("an autorefill", autorefill_price) is True:
-                self.has_autorefill_enabled = True
+            if self.try_to_buy("a builder kit", builder_kit_price) is True:
+                self.has_builder_kit = True
                 self.refill()
 
         def try_give_refill(self):
@@ -776,11 +776,11 @@ def apply_script(protocol, connection, config):
             if self.try_to_buy("a refill", refill_price):
                 self.refill()
 
-        def try_disable_autorefill(self):
-            if self.has_autorefill_enabled:
-                self.has_autorefill_enabled = False
+        def try_revoke_builder_kit(self):
+            if self.has_builder_kit:
+                self.has_builder_kit = False
 
-                self.send_chat("Automatic refill has been disabled for you")
+                self.send_chat("Your builder kit has been revoked")
 
         def refill(self, local = False):
             self.hp       = max(self.hp or 0, 100)
@@ -866,16 +866,16 @@ def apply_script(protocol, connection, config):
             if self.tool == SPADE_TOOL:
                 self.last_buy_on_key_1 = monotonic()
 
-                blue_has_bomb         = 'arena_blue_bombsites'  in ds
-                green_has_bomb        = 'arena_green_bombsites' in ds
-                arena_give_autorefill = ds.get('arena_give_autorefill', False)
+                blue_has_bomb          = 'arena_blue_bombsites'  in ds
+                green_has_bomb         = 'arena_green_bombsites' in ds
+                arena_give_builder_kit = ds.get('arena_give_builder_kit', False)
 
                 if self.team is self.protocol.blue_team and green_has_bomb:
                     self.try_give_defuse_kit()
                 elif self.team is self.protocol.green_team and blue_has_bomb:
                     self.try_give_defuse_kit()
-                elif arena_give_autorefill:
-                    self.try_give_autorefill()
+                elif arena_give_builder_kit:
+                    self.try_give_builder_kit()
                 else:
                     self.send_chat_error("No item on key 1 is available.")
 

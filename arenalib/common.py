@@ -126,11 +126,11 @@ def c_teamkillcount(connection, nickname = None, timeval = None):
             player.name, M, prettify_timespan(Δt)
         )
 
-@command('toggleautorefill', 'autorefill', 'tarl', admin_only = True)
-def c_toggle_autorefill(connection, argval = None):
+@command('givebuilderkit', 'gvbkit', 'toggleautorefill', 'autorefill', 'tarl', admin_only = True)
+def c_give_builder_kit(connection, argval = None):
     """
-    Toggle automatic refill for a given player
-    /toggleautorefill or /tarl [player]
+    Give a builder kit to a given player
+    /givebuilderkit or /tarl [player]
     """
 
     protocol = connection.protocol
@@ -140,17 +140,17 @@ def c_toggle_autorefill(connection, argval = None):
     if not isinstance(player, protocol.connection_class):
         return "This command applies to players only"
 
-    player.has_autorefill_enabled = not player.has_autorefill_enabled
+    player.has_builder_kit = not player.has_builder_kit
 
-    if player.has_autorefill_enabled:
+    if player.has_builder_kit:
         player.refill()
 
         protocol.broadcast_chat(
-            "{} enabled automatic refill for {}".format(connection.name, player.name)
+            "{} has given a builder kit to {}".format(connection.name, player.name)
         )
     else:
         protocol.broadcast_chat(
-            "{} disabled automatic refill for {}".format(connection.name, player.name)
+            "{} has taken a builder kit from {}".format(connection.name, player.name)
         )
 
 @command('gbrad', 'gbr')
