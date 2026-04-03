@@ -1,0 +1,88 @@
+# Copyright © 2026 rzrn
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+from itertools import product
+from random import Random
+
+from pyspades.common import make_color
+from pyspades.vxl import VXLData
+
+from arenalib.maptools import CTF, HSV3fAsRGB3i, respawn_on_flag_sunken
+
+name        = "LePacifique"
+version     = "1.0"
+team1_name  = "Bleus"
+team1_color = (0, 0, 255)
+team2_name  = "Verts"
+team2_color = (0, 255, 0)
+
+xmin, xmax, ymin, ymax = -48, 48, -128, 128
+
+extensions = CTF(
+    water_damage          = 100,
+    arena_give_autorefill = True,
+    arena_blue_spawns     = [(256 - Δx, 256 + Δy, 8) for Δx, Δy in product(range(41, 48), range(ymin, ymax + 1, 8))],
+    arena_blue_base       = (220, 256, 8),
+    arena_blue_flag       = (236, 256, 8),
+    arena_green_spawns    = [(256 + Δx, 256 + Δy, 8) for Δx, Δy in product(range(41, 48), range(ymin, ymax + 1, 8))],
+    arena_green_base      = (292, 256, 8),
+    arena_green_flag      = (276, 256, 8)
+)
+
+mask = None
+
+def is_indestructable(connection, x, y, z):
+    return mask.get_solid(x, y, z)
+
+def gen_script(basename, seed):
+    global fog
+
+    rgen = Random(seed)
+
+    hue = rgen.uniform(0.0, 1.0)
+
+    water  = HSV3fAsRGB3i(hue, rgen.uniform(0.3, 0.4), 1.0)
+    fog    = HSV3fAsRGB3i(hue, rgen.uniform(0.2, 0.3), 1.0)
+    color1 = HSV3fAsRGB3i(hue, rgen.uniform(0.3, 0.4), 1.0)
+    color2 = HSV3fAsRGB3i(hue, rgen.uniform(0.4, 0.5), 1.0)
+
+    vxl = VXLData()
+
+    global mask
+    mask = VXLData()
+
+    for x, y in product(range(512), range(512)):
+        vxl.set_point(x, y, 63, water)
+
+    rgba2 = make_color(*color2)
+
+    for Δx, Δy in product(range(xmin, xmax + 1), range(ymin, ymax + 1)):
+        x, y = 256 + Δx, 256 + Δy
+
+        if abs(Δx) < 8:
+            continue
+        elif Δx % 8 == Δy % 8 == 0:
+            vxl.set_column_fast(x, y, 0, 63, 63, rgba2)
+            mask.set_column_fast(x, y, 0, 63, 63, 0)
+        else:
+            on_grid = Δx % 8 == 0 or Δy % 8 == 0
+
+            for z in range(0, 63, 8):
+                vxl.set_point(x, y, z, color2 if on_grid else color1)
+                if on_grid or z == 0: mask.set_point(x, y, z, (0, 0, 0))
+
+    return vxl
+
+on_entity_updated = respawn_on_flag_sunken
