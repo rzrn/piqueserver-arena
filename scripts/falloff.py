@@ -22,6 +22,8 @@ from pyspades import contained as loaders
 from pyspades.weapon import BaseWeapon
 from pyspades.constants import *
 
+from arenalib.common import ArenaException
+
 class Weapon(BaseWeapon):
     discard_reloading = False
 
@@ -114,18 +116,39 @@ class Shotgun(Weapon):
 def apply_script(protocol, connection, config):
     class FalloffConnection(connection):
         def get_weapon(self, weapon):
+            ds = self.protocol.map_info.extensions
+
+            arena_rifle_enabled   = ds.get("arena_rifle_enabled",   True)
+            arena_smg_enabled     = ds.get("arena_smg_enabled",     True)
+            arena_shotgun_enabled = ds.get("arena_shotgun_enabled", True)
+
             if weapon == RIFLE_WEAPON:
-                return Rifle
+                if arena_rifle_enabled:
+                    return Rifle
+                elif arena_smg_enabled:
+                    return SMG
+                elif arena_shotgun_enabled:
+                    return Shotgun
 
             if weapon == SMG_WEAPON:
-                return SMG
+                if arena_smg_enabled:
+                    return SMG
+                elif arena_rifle_enabled:
+                    return Rifle
+                elif arena_shotgun_enabled:
+                    return Shotgun
 
             if weapon == SHOTGUN_WEAPON:
-                return Shotgun
+                if arena_shotgun_enabled:
+                    return Shotgun
+                elif arena_rifle_enabled:
+                    return Rifle
+                elif arena_smg_enabled:
+                    return SMG
 
         def set_weapon(self, weapon, local = False, no_kill = False):
             if weapon_class := self.get_weapon(weapon):
-                self.weapon = weapon
+                self.weapon = weapon_class.id
 
                 if self.weapon_object is not None:
                     self.weapon_object.reset()
@@ -140,6 +163,8 @@ def apply_script(protocol, connection, config):
                     self.protocol.broadcast_contained(change_weapon, save = True)
 
                     if not no_kill: self.kill(kill_type = CLASS_CHANGE_KILL)
+            else:
+                raise ArenaException("No weapons are configured to be available in map metadata.")
 
         def on_spawn(self, pos):
             self._on_reload()
