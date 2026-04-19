@@ -1,0 +1,116 @@
+# Copyright © 2026 rzrn
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+from pyspades.vxl import VXLData
+from itertools import product
+from random import Random
+
+from pyspades.common import make_color
+
+from arenalib.maptools import HSV3fAsRGB3i
+
+name    = 'CommeLesAnimaux'
+version = 1.0
+
+extensions = dict(
+    arena_blue_spawn        = (256 - 48, 256, 59),
+    arena_green_spawn       = (256 + 48, 256, 59),
+    arena_blue_base         = (256 - 8, 256, 59),
+    arena_green_base        = (256 + 8, 256, 59),
+    arena_give_builder_kit  = True,
+    arena_rifle_enabled     = False,
+    arena_smg_enabled       = False,
+    arena_discard_reloading = True,
+    arena_give_ammo         = False,
+    arena_refill_interval   = 5.0,
+    arena_starting_balance  = 30,
+    arena_builder_kit_price = 350,
+    arena_kevlar_price      = 125,
+    arena_helmet_price      = 75,
+    arena_kill_reward       = 10,
+    arena_teamkill_penalty  = -50,
+    arena_win_reward        = 25,
+    arena_lose_reward       = 0,
+    arena_capture_reward    = 5,
+    water_damage            = 100
+)
+
+def on_arena_warning(protocol, seconds):
+    ds = protocol.map_info.extensions
+
+    teamkill_penalty = ds.get('arena_teamkill_penalty', 0)
+
+    if teamkill_penalty < 0:
+        return "Get ${} for each teamkill".format(-teamkill_penalty)
+
+mask = None
+
+def is_indestructable(connection, x, y, z):
+    return bool(mask.get_solid(x, y, z))
+
+def gen_script(basename, seed):
+    global fog
+
+    rgen = Random(seed)
+
+    hue      = rgen.uniform(0.0, 1.0)
+    fog      = HSV3fAsRGB3i(hue, 0.40, 1.0)
+    water    = HSV3fAsRGB3i(hue, 0.45, 1.0)
+    concrete = HSV3fAsRGB3i(hue, 0.65, 1.0)
+
+    vxl = VXLData()
+
+    for x, y in product(range(512), range(512)):
+        vxl.set_point(x, y, 63, water)
+
+    rgba = make_color(*concrete)
+
+    # Central platform
+    for Δx, Δy in product(range(-16, 17), range(-16, 17)):
+        x, y = 256 + Δx, 256 + Δy
+        d = max(abs(Δx), abs(Δy))
+
+        vxl.set_point(x, y, 59, concrete)
+
+        if d > 13: vxl.set_point(x, y, 51, concrete)
+
+        if d == 15 and (Δx + Δy) % 2 == 0:
+            vxl.set_column_fast(x, y, 51, 63, 63, rgba)
+
+    global mask
+    mask = vxl.copy()
+
+    zs = [54, 46, 38]
+    zmin, zmax = 38, 63
+
+    # Team bases
+    for x0, y0 in (256 - 48, 256), (256 + 48, 256):
+        for Δx, Δy in product(range(-16, 17), range(-16, 17)):
+            x, y = x0 + Δx, y0 + Δy
+            d = max(abs(Δx), abs(Δy))
+
+            vxl.set_point(x, y, 62, concrete)
+
+            if 10 <= d:
+                for z in zs: vxl.set_point(x, y, z, concrete)
+
+            if d in {11, 15}:
+                for z in zs: mask.set_point(x, y, z, (0, 0, 0))
+
+                if (Δx + Δy) % 2 == 0:
+                    vxl.set_column_fast(x, y, zmin, zmax, zmax, rgba)
+                    mask.set_column_fast(x, y, zmin, zmax, zmax, 0)
+
+    return vxl
