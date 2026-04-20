@@ -709,6 +709,8 @@ def apply_script(protocol, connection, config):
                 return
 
             if self.has_kevlar_equipped:
+                self.send_chat_warning("You already have a kevlar vest.")
+
                 return
 
             if self.try_to_buy("a kevlar vest", kevlar_price) is True:
@@ -726,6 +728,8 @@ def apply_script(protocol, connection, config):
                 return
 
             if self.has_helmet_equipped:
+                self.send_chat_warning("You already have a helmet.")
+
                 return
 
             if self.has_kevlar_equipped:
@@ -743,6 +747,8 @@ def apply_script(protocol, connection, config):
             defuse_kit_price = ds.get('arena_defuse_kit_price', 0)
 
             if self.has_defuse_kit:
+                self.send_chat_warning("You already have a defuse kit.")
+
                 return
 
             if self.try_to_buy("a defuse kit", defuse_kit_price) is True:
@@ -753,6 +759,8 @@ def apply_script(protocol, connection, config):
             builder_kit_price = ds.get('arena_builder_kit_price', 0)
 
             if self.has_builder_kit:
+                self.send_chat_warning("You already have a builder kit.")
+
                 return
 
             if self.try_to_buy("a builder kit", builder_kit_price) is True:
