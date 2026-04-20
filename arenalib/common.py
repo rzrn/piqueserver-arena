@@ -19,7 +19,9 @@ from time import monotonic
 from os.path import isfile, dirname, getmtime
 from os import makedirs
 
+from pyspades.constants import SPADE_TOOL, BLOCK_TOOL, WEAPON_TOOL, GRENADE_TOOL
 from pyspades.contained import GrenadePacket, IntelDrop
+from pyspades.collision import vector_collision
 from pyspades.common import prettify_timespan
 
 from piqueserver.commands import player_only, command, get_player
@@ -76,6 +78,42 @@ def c_balance(player):
     """
 
     player.send_chat_status("${}".format(player.cash_balance))
+
+@command('buy', 'buymenu')
+@player_only
+def c_buy(player, argval = None):
+    """
+    Use buy menu, equivalent to standing in a tent
+    /buy <1 | 2 | 3 | 4>
+    """
+
+    if argval is None:
+        return "Use `/buy 1`, `/buy 2`, `/buy 3`, or `/buy 4`"
+
+    if player.name is None:
+        return
+
+    if player.team is None or player.team.spectator:
+        return
+
+    if argval == "1":
+        tool = SPADE_TOOL
+    elif argval == "2":
+        tool = BLOCK_TOOL
+    elif argval == "3":
+        tool = WEAPON_TOOL
+    elif argval == "4":
+        tool = GRENADE_TOOL
+    else:
+        return "No `/buy {}` item is available".format(argval)
+
+    for team in player.team, player.team.other:
+        if vector_collision(player.world_object.position, team.base):
+            player.try_use_buy_menu(tool)
+
+            return
+
+    return "Tent is too far"
 
 @command('afktimer', 'afk')
 def c_afktimer(connection, nickname):

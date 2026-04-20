@@ -829,7 +829,7 @@ def apply_script(protocol, connection, config):
 
             return hp_price + ammo_price + block_price + grenade_price
 
-        def check_refill(self):
+        def try_use_buy_menu(self, tool):
             if self.protocol.arena_running is False:
                 return
 
@@ -839,16 +839,16 @@ def apply_script(protocol, connection, config):
             ds = self.protocol.map_info.extensions
             refill_interval = ds.get('arena_refill_interval', self.protocol.refill_interval)
 
-            if self.tool == SPADE_TOOL:
+            if tool == SPADE_TOOL:
                 last_buy = self.last_buy_on_key_1
 
-            if self.tool == BLOCK_TOOL:
+            if tool == BLOCK_TOOL:
                 last_buy = self.last_buy_on_key_2
 
-            if self.tool == WEAPON_TOOL:
+            if tool == WEAPON_TOOL:
                 last_buy = self.last_buy_on_key_3
 
-            if self.tool == GRENADE_TOOL:
+            if tool == GRENADE_TOOL:
                 last_buy = self.last_buy_on_key_4
 
             dt = monotonic() - last_buy
@@ -863,7 +863,7 @@ def apply_script(protocol, connection, config):
             if self.on_refill() is False:
                 return
 
-            if self.tool == SPADE_TOOL:
+            if tool == SPADE_TOOL:
                 self.last_buy_on_key_1 = monotonic()
 
                 blue_has_bomb          = 'arena_blue_bombsites'  in ds
@@ -879,17 +879,20 @@ def apply_script(protocol, connection, config):
                 else:
                     self.send_chat_error("No item on key 1 is available.")
 
-            if self.tool == BLOCK_TOOL:
+            if tool == BLOCK_TOOL:
                 self.last_buy_on_key_2 = monotonic()
                 self.try_give_kevlar()
 
-            if self.tool == WEAPON_TOOL:
+            if tool == WEAPON_TOOL:
                 self.last_buy_on_key_3 = monotonic()
                 self.try_give_refill()
 
-            if self.tool == GRENADE_TOOL:
+            if tool == GRENADE_TOOL:
                 self.last_buy_on_key_4 = monotonic()
                 self.try_give_assault_vest()
+
+        def check_refill(self):
+            self.try_use_buy_menu(self.tool)
 
     class ArenaProtocol(protocol):
         game_mode = CTF_MODE
