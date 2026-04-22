@@ -17,7 +17,7 @@ from pyspades.vxl import VXLData
 from itertools import product
 from random import Random
 
-from arenalib.maptools import CTF, HSV3fAsRGB3i
+from arenalib.maptools import CTF, HSV3fAsRGB3i, respawn_on_flag_sunken
 
 name      = 'DarienPoint'
 author    = 'izzy (orig.)'
@@ -64,3 +64,5 @@ def gen_script(basename, seed):
             vxl.set_point(256 + Δx, 256 + Δy, 62, color)
 
     return vxl
+
+on_entity_updated = respawn_on_flag_sunken
