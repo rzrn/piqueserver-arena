@@ -1,0 +1,29 @@
+from pyspades.vxl import VXLData
+
+from arenalib.maptools import CTF, respawn_on_flag_sunken
+
+name        = 'ctf_goon_fort'
+cap_limit   = 5
+team1_name  = 'This Team'
+team1_color = (255, 0, 128)
+team2_name  = 'That Team'
+team2_color = (0, 128, 255)
+
+extensions = CTF(
+    arena_give_builder_kit = True,
+    arena_blue_spawns      = [(120, y, 32) for y in range(248, 265)],
+    arena_green_spawns     = [(392, y, 32) for y in range(248, 265)],
+    arena_blue_base        = (116, 256, 57),
+    arena_green_base       = (396, 256, 57),
+    arena_blue_flag        = (124, 256, 57),
+    arena_green_flag       = (388, 256, 57),
+    water_damage           = 100
+)
+
+with open("maps/ctf_goon_fort.0.vxl", "rb") as fin:
+    mask = VXLData(fin)
+
+def is_indestructable(self, x, y, z):
+    return bool(mask.get_solid(x, y, z))
+
+on_entity_updated = respawn_on_flag_sunken
