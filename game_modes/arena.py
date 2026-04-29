@@ -347,6 +347,32 @@ def apply_script(protocol, connection, config):
 
             return False
 
+        def arena_end_round(self):
+            protocol = self.protocol
+
+            connection.capture_flag(self)
+
+            for player in protocol.players.values():
+                player.send_chat_status(
+                    "{} team wins the round".format(self.team.name)
+                )
+
+            ds = protocol.map_info.extensions
+            arena_win_reward     = ds.get('arena_win_reward', 0)
+            arena_lose_reward    = ds.get('arena_lose_reward', 0)
+            arena_capture_reward = ds.get('arena_capture_reward', 0)
+
+            self.give_player_cash(arena_capture_reward)
+
+            for player in self.team.get_players():
+                player.give_player_cash(arena_win_reward)
+
+            for player in self.team.other.get_players():
+                player.give_player_cash(arena_lose_reward)
+
+            protocol.begin_arena_countdown(protocol.arena_break_time)
+            protocol.arena_spawn()
+
         def capture_flag(self):
             protocol = self.protocol
 
@@ -354,28 +380,17 @@ def apply_script(protocol, connection, config):
                 if team.other.flag.player is not self:
                     return
 
-                connection.capture_flag(self)
-
-                for player in protocol.players.values():
-                    player.send_chat_status(
-                        "{} team wins the round".format(team.name)
-                    )
-
                 ds = protocol.map_info.extensions
-                arena_win_reward     = ds.get('arena_win_reward', 0)
-                arena_lose_reward    = ds.get('arena_lose_reward', 0)
-                arena_capture_reward = ds.get('arena_capture_reward', 0)
 
-                self.give_player_cash(arena_capture_reward)
+                if team is protocol.team_1:
+                    team_has_bomb = 'arena_blue_bombsites' in ds
+                elif team is protocol.team_2:
+                    team_has_bomb = 'arena_green_bombsites' in ds
+                else:
+                    team_has_bomb = False
 
-                for player in team.get_players():
-                    player.give_player_cash(arena_win_reward)
-
-                for player in team.other.get_players():
-                    player.give_player_cash(arena_lose_reward)
-
-                protocol.begin_arena_countdown(protocol.arena_break_time)
-                protocol.arena_spawn()
+                if team_has_bomb is False:
+                    self.arena_end_round()
 
         def drop_flag(self, loc = None):
             protocol = self.protocol
@@ -1058,7 +1073,7 @@ def apply_script(protocol, connection, config):
 
                 self.broadcast_contained(contained, save = True)
 
-            killer.capture_flag()
+            killer.arena_end_round()
 
         def on_map_change(self, M):
             o = self.map_info.info
