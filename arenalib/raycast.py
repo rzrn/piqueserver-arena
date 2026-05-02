@@ -1,5 +1,5 @@
 # Copyright © 2011–2012 Mathias Kaerlev
-# Copyright © 2024–2025 rzrn
+# Copyright © 2024–2026 rzrn
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from math import floor
+from math import copysign, floor, ceil
 
 def cube_line(x1, y1, z1, x2, y2, z2):
     x, y, z = x1, y1, z1
@@ -76,3 +76,39 @@ def line_rasterizer(x, y, z, rx, ry, rz, length = 256.0):
     ez = floor(z + rz * length)
 
     yield from cube_line(x, y, z, ex, ey, ez)
+
+def line_traverse(r, v):
+    x = floor(r.x) + 1 if v.x > 0 else ceil(r.x) - 1
+    y = floor(r.y) + 1 if v.y > 0 else ceil(r.y) - 1
+    z = floor(r.z) + 1 if v.z > 0 else ceil(r.z) - 1
+
+    dx, dy, dz = x - r.x, y - r.y, z - r.z
+
+    if abs(dx) < 1e-20:
+        dx = copysign(1.0, v.x)
+
+    if abs(dy) < 1e-20:
+        dy = copysign(1.0, v.y)
+
+    if abs(dz) < 1e-20:
+        dz = copysign(1.0, v.z)
+
+    return 1 / max(v.x / dx, v.y / dy, v.z / dz)
+
+def cast(r, v):
+    t = 0
+
+    for N in range(10_000):
+        if r.x < 0 or r.x > 512: break
+        if r.y < 0 or r.y > 512: break
+        if r.z < 0 or r.z > 512: break
+
+        dt = line_traverse(r, v)
+        dr = v * dt
+
+        R = r + dr * 0.5
+
+        t += dt
+        r += dr
+
+        yield t, floor(R.x), floor(R.y), ceil(R.z)
