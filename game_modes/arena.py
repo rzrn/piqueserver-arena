@@ -925,6 +925,11 @@ def apply_script(protocol, connection, config):
 
         grenade_blast_radius = None
 
+        def get_mode_name(self):
+            ds = self.map_info.extensions
+
+            return ds.get('arena_game_mode', 'arena')
+
         def __init__(self, *w, **kw):
             protocol.__init__(self, *w, **kw)
 

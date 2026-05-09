@@ -147,6 +147,7 @@ def doGrenadePacket(player, fuse, x, y, z, vx, vy, vz):
 def CTF(**kw):
     ds = dict(
         arena                  = True,
+        arena_game_mode        = 'ctf',
         arena_break_time       = 0,
         arena_map_change_delay = 0,
         arena_time_limit       = 0,
@@ -161,6 +162,7 @@ def CTF(**kw):
 def CS2(**kw):
     ds = dict(
         arena                   = True,
+        arena_game_mode         = 'cs2',
         arena_discard_reloading = True,
         arena_give_ammo         = False,
         arena_refill_interval   = 5.0,

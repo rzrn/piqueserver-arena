@@ -36,6 +36,7 @@ team2_color = (96, 96, 255)
 cap_limit   = 0
 
 extensions = CTF(
+    arena_game_mode        = 'build',
     arena_blue_spawns      = [(122 + Δx, 256 + Δy, 0) for Δx, Δy in product(range(-32, 32), repeat = 2)],
     arena_green_spawns     = [(390 + Δx, 256 + Δy, 0) for Δx, Δy in product(range(-32, 32), repeat = 2)],
     arena_blue_base        = (128, 256, 0),
